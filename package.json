@@ -1,0 +1,29 @@
+{
+  "name": "proctorkit",
+  "version": "0.1.0",
+  "description": "Proctoring you can add to any web quiz: system checks, consent, full-screen and focus guards, screen-share enforcement, snapshots and an event log. No backend required.",
+  "keywords": ["proctoring", "proctor", "exam", "quiz", "assessment", "anti-cheat", "online-test", "invigilation", "webcam", "screen-share"],
+  "license": "MIT",
+  "author": "Ashhar",
+  "repository": { "type": "git", "url": "git+https://github.com/aproli90/proctorkit.git" },
+  "type": "module",
+  "main": "./dist/proctorkit.js",
+  "module": "./dist/proctorkit.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/proctorkit.global.js",
+  "jsdelivr": "./dist/proctorkit.global.js",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/proctorkit.js", "default": "./dist/proctorkit.js" }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "npm run build && node test/smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.50.0",
+    "typescript": "^5.6.0"
+  }
+}
