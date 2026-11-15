@@ -150,7 +150,7 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 `cloud` posts JSON to two routes on `endpoint`:
 
-- `POST {endpoint}/snapshot` with `{ token, kind, image, reason, at, ms, context }`
+- `POST {endpoint}/snapshot` with `{ token, kind, image, reason, at, ms, context, page }`, where `page` is the test page's title and host
 - `POST {endpoint}/events` with `{ token, events }`
 
 `sessionToken` must be a short-lived token your server issues for one session. Never put an API key in the page. Failed uploads are retried and then dropped with a `snapshot_upload_failed` event; a backend outage never stops the test.

@@ -414,7 +414,7 @@ export class Proctor {
     while (cloud && this.uploading < 2 && this.uploads.length) {
       const shot = this.uploads.shift()!;
       this.uploading++;
-      void this.post(`${cloud.endpoint.replace(/\/$/, '')}/snapshot`, { token: cloud.sessionToken, kind: shot.kind, image: shot.dataUrl, reason: shot.reason, at: shot.at, ms: shot.ms, context: shot.context }, 3)
+      void this.post(`${cloud.endpoint.replace(/\/$/, '')}/snapshot`, { token: cloud.sessionToken, kind: shot.kind, image: shot.dataUrl, reason: shot.reason, at: shot.at, ms: shot.ms, context: shot.context, page: { title: document.title, host: location.host } }, 3)
         .then((ok) => { if (!ok) this.emit('snapshot_upload_failed', 'warn', { kind: shot.kind, ms: shot.ms }); })
         .finally(() => { this.uploading--; this.pump(); });
     }
