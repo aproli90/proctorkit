@@ -11,9 +11,11 @@ export interface ProctorSettings {
   hideCameraAfterSetup: boolean;
   /** With no face in view for this long, ask the candidate to move back. */
   absencePromptSec: number;
+  /** During setup, how long to wait for the candidate's face before asking them to adjust. */
+  faceSetupWaitSec: number;
   /** Seconds between on-device face checks. */
   faceCheckIntervalSec: number;
-  /** Consecutive face checks that must see two or more faces before `multiple_faces` is reported. */
+  /** Consecutive face checks that must see two or more faces before an extra frame is taken. */
   multipleFacesChecks: number;
   /** Identical consecutive webcam frames before the feed is reported as frozen. */
   frozenFeedFrames: number;
@@ -34,6 +36,7 @@ export const defaultSettings: ProctorSettings = {
   snapshotJitterSec: 3,
   hideCameraAfterSetup: true,
   absencePromptSec: 10,
+  faceSetupWaitSec: 12,
   faceCheckIntervalSec: 2,
   multipleFacesChecks: 2,
   frozenFeedFrames: 3,

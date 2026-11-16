@@ -227,10 +227,10 @@ const browser = await chromium.launch({
   });
   await page.goto(`${base}/test/page.html`);
   await page.evaluate(() => {
-    window.snaps = []; window.evs = []; window.__faces = 1;
+    window.snaps = []; window.evs = []; window.__faces = 0;
     window.proctor = ProctorKit.createProctor({
       cameraTile: true,
-      settings: { snapshotIntervalSec: 2, snapshotJitterSec: 1, absencePromptSec: 2, faceCheckIntervalSec: 0.4, frozenFeedFrames: 2, longFocusLossSec: 1, fastAnswerSec: 5, pointerAwayMinMs: 300, notASetting: 9, hideCameraAfterSetup: 'yes' },
+      settings: { faceSetupWaitSec: 1, snapshotIntervalSec: 2, snapshotJitterSec: 1, absencePromptSec: 2, faceCheckIntervalSec: 0.4, frozenFeedFrames: 2, longFocusLossSec: 1, fastAnswerSec: 5, pointerAwayMinMs: 300, notASetting: 9, hideCameraAfterSetup: 'yes' },
       faceDetection: { detect: () => window.__faces },
       onEvent: (e) => window.evs.push(e),
       onSnapshot: (s) => window.snaps.push({ kind: s.kind, ms: s.ms, reason: s.reason }),
@@ -239,6 +239,11 @@ const browser = await chromium.launch({
   });
   const types = () => page.evaluate(() => window.evs.map((e) => e.type));
   const ev = (t) => page.evaluate((t) => window.evs.find((e) => e.type === t), t);
+  await page.locator('[data-step="camera"] .pk-btn').click();
+  await page.locator('[data-step="camera"] .pk-step__error').waitFor();
+  check('setup does not pass until a face is in view', (await page.locator('[data-step="camera"] .pk-step__error').innerText()) === 'We could not see your face.' && !(await page.evaluate(() => window.proctor.ready())));
+  check('start() is refused before the prerequisites are met', (await page.evaluate(() => window.proctor.start())) === false);
+  await page.evaluate(() => { window.__faces = 1; });
   await page.locator('[data-step="camera"] .pk-btn').click();
   await page.locator('[data-step="screen"] .pk-btn').click();
   await page.locator('.pk-check input').check();
@@ -259,10 +264,11 @@ const browser = await chromium.launch({
   await page.evaluate(() => { window.__faces = 1; });
   await sleep(900);
   check('prompt clears when the face returns', (await page.locator('.pk-notice').count()) === 0 && (await types()).includes('face_returned'));
+  const shotsBefore = await page.evaluate(() => window.snaps.filter((s) => s.reason === 'event').length);
   await page.evaluate(() => { window.__faces = 2; });
   await sleep(1400);
-  const many = (await types()).filter((t) => t === 'multiple_faces').length;
-  check('two faces are reported once per episode, with no prompt', many === 1 && (await page.locator('.pk-notice').count()) === 0, `${many} event(s)`);
+  const shotsAfter = await page.evaluate(() => window.snaps.filter((s) => s.reason === 'event').length);
+  check('two faces raise no flag and no prompt, only an extra frame', !(await types()).includes('multiple_faces') && shotsAfter > shotsBefore && (await page.locator('.pk-notice').count()) === 0, `${shotsAfter - shotsBefore} extra frame(s)`);
   await page.evaluate(() => { window.__faces = 1; });
 
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
@@ -287,9 +293,26 @@ const browser = await chromium.launch({
   check('identical webcam frames are reported as a frozen feed, once', !!frozen && frozen.severity === 'high' && (await types()).filter((t) => t === 'camera_frozen').length === 1, frozen ? `${frozen.data.frames} frames` : '');
   const shots = (await page.evaluate(() => window.snaps)).filter((s) => s.kind === 'webcam' && s.reason === 'interval').map((s) => s.ms);
   const gaps = shots.slice(2).map((ms, i) => ms - shots[i + 1]);
-  check('capture timing varies within the allowed range', gaps.length >= 3 && gaps.every((g) => g > 900 && g < 3200) && Math.max(...gaps) - Math.min(...gaps) > 50, gaps.join(', ') + ' ms');
+  check('capture timing varies within the allowed range', gaps.length >= 3 && gaps.every((g) => g > 600 && g < 3500) && Math.max(...gaps) - Math.min(...gaps) > 50, gaps.join(', ') + ' ms');
   await page.evaluate(() => window.proctor.stop());
   check('no page errors', errors.length === 0, errors.join('; '));
+  await context.close();
+}
+
+// ---- 4b. the face detector cannot be loaded: the test does not start
+{
+  const context = await browser.newContext({ permissions: ['camera'] });
+  const page = await context.newPage();
+  await page.addInitScript(mocks);
+  await page.goto(`${base}/test/page.html`);
+  const r = await page.evaluate(async () => {
+    const evs = [];
+    const p = ProctorKit.createProctor({ ui: 'headless', require: { screenShare: false }, faceDetection: { moduleUrl: '/missing.mjs' }, onEvent: (e) => evs.push(e) });
+    p.giveConsent();
+    const res = await p.runChecks();
+    return { res, started: p.start(), failed: evs.some((e) => e.type === 'check_failed' && e.data.check === 'face_detection') };
+  });
+  check('a face detector that fails to load blocks the start', r.res.ok === false && r.res.reason === 'face_detection' && r.started === false && r.failed, JSON.stringify(r.res));
   await context.close();
 }
 

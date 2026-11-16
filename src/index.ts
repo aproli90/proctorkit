@@ -60,6 +60,7 @@ export class Proctor {
   private frozenReported = false;
 
   private faces: FaceCounter | null = null;
+  private faceSeen = false;
   private faceTimer: ReturnType<typeof setInterval> | null = null;
   private faceBusy = false;
   private noFaceSince = 0;
@@ -136,12 +137,13 @@ export class Proctor {
     }
     if (headless) {
       if (this.need.camera && !live(this.cam) && !(await this.requestCamera()).ok) return { ok: false, reason: 'camera' };
+      if (!(await this.prepareFaceDetection()).ok) return { ok: false, reason: 'face_detection' };
       if (this.need.screenShare && !live(this.scr) && !(await this.requestScreenShare()).ok) return { ok: false, reason: 'screen_share' };
       return this.consented ? { ok: true } : { ok: false, reason: 'consent' };
     }
     const ui = this.view();
     const steps: StepSpec[] = [];
-    if (this.need.camera && !live(this.cam)) steps.push({ id: 'camera', title: this.s.cameraTitle, render: (b, done) => ui.actionStep(b, this.s.cameraBody, this.s.cameraButton, () => this.requestCamera(), done) });
+    if (this.need.camera && !(live(this.cam) && this.faceReady())) steps.push({ id: 'camera', title: this.s.cameraTitle, render: (b, done) => ui.actionStep(b, this.s.cameraBody, this.s.cameraButton, async () => { const r = live(this.cam) ? { ok: true as const } : await this.requestCamera(); return r.ok ? this.prepareFaceDetection() : r; }, done) });
     if (this.need.screenShare && !live(this.scr)) steps.push({ id: 'screen', title: this.s.screenTitle, render: (b, done) => ui.actionStep(b, this.s.screenBody, this.s.screenButton, () => this.requestScreenShare(), done) });
     if (!this.consented) steps.push({ id: 'consent', title: this.s.consentTitle, render: (b, done) => ui.consentStep(b, this.consentFacts(), () => { this.giveConsent(); done(); }) });
     if (steps.length) await ui.runSteps(steps);
@@ -164,6 +166,37 @@ export class Proctor {
       this.emit('check_failed', 'info', { check: 'camera', error: errName(e) });
       return { ok: false, error: this.s.cameraError, fix: this.s.cameraFix };
     }
+  }
+
+  private faceWanted(): boolean { return this.need.camera && this.config.faceDetection !== false; }
+  private faceReady(): boolean { return !this.faceWanted() || this.faceSeen; }
+
+  /**
+   * A prerequisite when face detection is on: loads the on-device face detector and waits until the
+   * candidate's face is in view. The test cannot start until this passes. Call after `requestCamera()`.
+   */
+  async prepareFaceDetection(): Promise<Outcome> {
+    if (this.faceReady()) return { ok: true };
+    if (!live(this.cam)) return { ok: false, error: this.s.cameraError, fix: this.s.cameraFix };
+    if (!this.faces) {
+      try { this.faces = await loadFaceCounter(this.config.faceDetection || {}); }
+      catch (e) {
+        this.emit('check_failed', 'info', { check: 'face_detection', error: errName(e) });
+        return { ok: false, error: this.s.faceLoadError, fix: this.s.faceLoadFix };
+      }
+    }
+    const video = this.camV || (this.camV = feed(this.cam!));
+    const until = Date.now() + this.set.faceSetupWaitSec * 1000;
+    while (Date.now() < until && live(this.cam)) {
+      try { if (video.videoWidth && (await this.faces.count(video)) >= 1) { this.faceSeen = true; break; } } catch { /* try again */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    if (!this.faceSeen) {
+      this.emit('check_failed', 'info', { check: 'face_visible' });
+      return { ok: false, error: this.s.noFaceError, fix: this.s.noFaceFix };
+    }
+    this.emit('check_passed', 'info', { check: 'face_detection' });
+    return { ok: true };
   }
 
   /** Asks the candidate to share their entire screen. Rejects a window or tab share. Must be called from a click. */
@@ -200,7 +233,7 @@ export class Proctor {
 
   /** True when every required stream is live and consent was given. */
   ready(): boolean {
-    return this.consented && (!this.need.camera || live(this.cam)) && (!this.need.screenShare || live(this.scr));
+    return this.consented && (!this.need.camera || live(this.cam)) && this.faceReady() && (!this.need.screenShare || live(this.scr));
   }
 
   /** Starts guarding and recording. Call it when the first question appears, after `runChecks()` passed. */
@@ -212,7 +245,7 @@ export class Proctor {
     this.endedAt = 0;
     this.emit('started', 'info', { require: this.need, intervalSec: this.intervalSec });
 
-    if (this.cam) this.camV = feed(this.cam);
+    if (this.cam && !this.camV) this.camV = feed(this.cam);
     if (this.scr) this.scrV = feed(this.scr);
     this.questionSince = this.startedAt;
     if (this.cam && this.tile === 'always') this.view().showCamera(this.cam);
@@ -230,7 +263,7 @@ export class Proctor {
       setTimeout(() => this.tick(), 1500); // first frames once the streams are producing
       this.schedule();
     }
-    if (this.cam && this.config.faceDetection !== false) void this.startFaceChecks();
+    if (this.faces) this.faceTimer = setInterval(() => void this.faceCheck(), this.set.faceCheckIntervalSec * 1000);
     if (this.config.cloud) this.flushTimer = setInterval(() => void this.flushEvents(), 5000);
 
     if (this.need.fullscreen && !document.fullscreenElement) {
@@ -259,7 +292,7 @@ export class Proctor {
     for (const t of [this.displayTimer, this.flushTimer, this.faceTimer]) if (t) clearInterval(t);
     for (const t of [this.timer, this.awayShot]) if (t) clearTimeout(t);
     this.timer = this.displayTimer = this.flushTimer = this.awayShot = this.faceTimer = null;
-    this.faces?.close(); this.faces = null;
+    this.faces?.close(); this.faces = null; this.faceSeen = false;
     this.noFaceSince = 0; this.absent = false; this.manyFaces = 0; this.pointerLeftAt = 0; this.longReturn = null;
     const cam = this.cam, scr = this.scr;
     this.cam = this.scr = this.camV = this.scrV = null; // cleared first so the 'ended' handlers do not treat this as a loss
@@ -464,19 +497,8 @@ export class Proctor {
     this.timer = setTimeout(() => { this.tick(); this.schedule(); }, Math.max(1, wait) * 1000);
   }
 
-  // ---- on-device face count. Failing to load it never stops the test.
-
-  private async startFaceChecks(): Promise<void> {
-    try {
-      const faces = await loadFaceCounter(this.config.faceDetection || {});
-      if (!this.running) { faces.close(); return; }
-      this.faces = faces;
-    } catch (e) {
-      this.emit('face_detection_unavailable', 'info', { error: errName(e) });
-      return;
-    }
-    this.faceTimer = setInterval(() => void this.faceCheck(), this.set.faceCheckIntervalSec * 1000);
-  }
+  // ---- on-device face count. It prompts the candidate and times extra frames; it raises no flag about
+  // other people. Whether someone else is present is decided by the checks on the uploaded frames.
 
   private async faceCheck(): Promise<void> {
     const video = this.camV;
@@ -496,13 +518,12 @@ export class Proctor {
         if (this.config.ui !== 'headless') this.view().showNotice(this.s.absencePrompt);
       }
     } else {
-      if (this.absent) { this.emit('face_returned', 'info', { awayMs: now - this.noFaceSince }); this.ui?.hideNotice(); }
+      if (this.absent) { this.emit('face_returned', 'info', { awayMs: now - this.noFaceSince }); this.ui?.hideNotice(); this.snap('event'); }
       this.noFaceSince = 0; this.absent = false;
     }
-    if (n >= 2) {
-      this.manyFaces++;
-      if (this.manyFaces === this.set.multipleFacesChecks) { this.emit('multiple_faces', 'warn', { faces: n }); this.snap('event'); }
-    } else this.manyFaces = 0;
+    // a second face is not reported from here: an extra frame is taken so the moment gets checked
+    if (n >= 2) { this.manyFaces++; if (this.manyFaces === this.set.multipleFacesChecks) this.snap('event'); }
+    else this.manyFaces = 0;
   }
 
   private onClipboard = (e: Event): void => {

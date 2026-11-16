@@ -10,7 +10,7 @@ export type ProctorEventType =
   | 'paused' | 'resumed'
   | 'fullscreen_exit' | 'screen_share_stopped' | 'screen_share_resumed' | 'screen_surface_unverified'
   | 'camera_lost' | 'camera_restored' | 'virtual_camera' | 'camera_frozen'
-  | 'no_face' | 'face_returned' | 'multiple_faces' | 'face_detection_unavailable'
+  | 'no_face' | 'face_returned'
   | 'extra_display'
   | 'focus_lost' | 'focus_returned' | 'pointer_left_page' | 'answer_after_focus_loss'
   | 'copy_blocked' | 'cut_blocked' | 'paste_blocked' | 'contextmenu_blocked'
@@ -79,8 +79,9 @@ export interface ProctorConfig {
   /** Timings and thresholds. Anything left out keeps its default; see `defaultSettings`. */
   settings?: Partial<import('./settings').ProctorSettings>;
   /**
-   * Count faces on the candidate's own device to prompt them back into view and to report
-   * `no_face` and `multiple_faces`. Loads MediaPipe when the test starts. Set `false` to switch it off.
+   * Find the candidate's face on their own device. While it is on, the test cannot start until the
+   * detector has loaded and a face is in view; during the test it prompts the candidate back into view
+   * and reports `no_face`. It never reports other people. Set `false` to switch it off.
    */
   faceDetection?: false | FaceDetectionOptions;
   /** Block copy, cut, paste and the context menu on the page, and log each attempt. Default `true`. */
@@ -114,7 +115,7 @@ export interface ProctorConfig {
 export interface CheckResult {
   ok: boolean;
   /** Why the checks did not pass. Absent when `ok` is true. */
-  reason?: 'unsupported' | 'extra_display' | 'camera' | 'screen_share' | 'consent' | 'cancelled';
+  reason?: 'unsupported' | 'extra_display' | 'camera' | 'face_detection' | 'screen_share' | 'consent' | 'cancelled';
   /** Browser features that are missing, when `reason` is `unsupported`. */
   missing?: string[];
 }

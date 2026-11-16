@@ -62,7 +62,7 @@ A complete page is in [`examples/basic.html`](examples/basic.html).
 | Copy, cut, paste, context menu blocked | on | Each attempt is logged |
 | Time away from the test window | on | `focus_lost` and `focus_returned` with `awayMs` |
 | Per-question behaviour | on | Time since the question appeared on each focus loss; moving on right after a long focus loss; the pointer leaving the page |
-| Face count on the candidate's device | on | Asks the candidate to move back into view; reports `no_face` and `multiple_faces`. No frame leaves the page for it |
+| Face in view, checked on the candidate's device | on | The test cannot start until the detector has loaded and a face is in view. During the test it asks the candidate to move back into view and reports `no_face`. It never reports other people. No frame leaves the page for it |
 | Software camera and frozen feed | on | `virtual_camera` by the camera's name; `camera_frozen` when frames stop changing |
 | Camera preview | setup only | Shown while the candidate sets up, hidden during the test |
 | Webcam and screen frames | about every 10 s | JPEG data URLs; the exact moment varies by a few seconds; extra frames when something happens |
@@ -120,9 +120,10 @@ Every timing and threshold is in one object, `defaultSettings`. Pass only what y
 | `snapshotIntervalSec` | 10 | Seconds between regular frames |
 | `snapshotJitterSec` | 3 | Each frame is taken up to this many seconds early or late |
 | `hideCameraAfterSetup` | true | Show the camera preview during the system check only |
+| `faceSetupWaitSec` | 12 | During setup, how long to wait for a face before asking the candidate to adjust |
 | `absencePromptSec` | 10 | No face for this long: ask the candidate to move back into view |
 | `faceCheckIntervalSec` | 2 | Seconds between face checks |
-| `multipleFacesChecks` | 2 | Consecutive checks with two or more faces before `multiple_faces` |
+| `multipleFacesChecks` | 2 | Consecutive checks with two or more faces before an extra frame is taken |
 | `frozenFeedFrames` | 3 | Identical consecutive webcam frames before `camera_frozen` |
 | `minFocusLossMs` | 800 | Shorter focus losses are ignored |
 | `longFocusLossSec` | 5 | A longer focus loss is `warn`, a shorter one `info` |
@@ -134,7 +135,11 @@ With a ProctorKit backend, pass the `settings` object from the create-session re
 
 ### Face detection
 
-The face count uses [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector) and runs in the candidate's browser. Its runtime and model (a few MB) are fetched when the test starts, by default from jsDelivr and Google's model storage. If they cannot be loaded the test carries on and a `face_detection_unavailable` event is logged.
+Face detection uses [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/face_detector) and runs in the candidate's browser. Its runtime and model (about 4.5 MB compressed, cached by the browser afterwards) are fetched during the camera step, by default from jsDelivr and Google's model storage.
+
+While it is on, it is a prerequisite: the camera step passes only when the detector has loaded and the candidate's face is in view, and `start()` returns `false` until then. If the files cannot be loaded the candidate is told to check their connection and try again. Headless hosts call `prepareFaceDetection()` after `requestCamera()`; `runChecks()` returns `reason: 'face_detection'` when it fails.
+
+It only answers "is the candidate's face in view". When it sees a second face it takes an extra frame and reports nothing, so that judging who else is present is left to whatever checks the frames afterwards.
 
 ```js
 createProctor({ faceDetection: false });                                   // off
@@ -169,7 +174,7 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | Type | Severity | Data |
 | --- | --- | --- |
 | `unsupported` | high | `missing` |
-| `check_passed`, `check_failed` | info | `check`, `error` or `surface` |
+| `check_passed`, `check_failed` | info | `check` (`camera`, `face_detection`, `face_visible`, `screen_share`), `error` or `surface` |
 | `consent_given` | info | `retentionDays` |
 | `started`, `stopped` | info | |
 | `context_changed` | info | the values that changed |
@@ -181,8 +186,6 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `camera_frozen` | high | `frames`: identical webcam frames in a row |
 | `no_face` | warn | `seconds` with no face; the candidate is prompted |
 | `face_returned` | info | `awayMs` |
-| `multiple_faces` | warn | `faces` |
-| `face_detection_unavailable` | info | `error` |
 | `screen_surface_unverified` | warn | the browser did not report what was shared |
 | `extra_display` | warn before the test, high during | `phase` |
 | `focus_lost` | warn | `sinceQuestionMs` |

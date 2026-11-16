@@ -37,6 +37,11 @@ export const defaultStrings: Record<string, string> = {
   cameraOn: 'Camera on',
   cameraFraming: 'Keep your face in this picture',
   absencePrompt: 'Move back into view of your camera.',
+  working: 'Checking…',
+  faceLoadError: 'The camera check could not be loaded.',
+  faceLoadFix: 'Check your internet connection, then try again.',
+  noFaceError: 'We could not see your face.',
+  noFaceFix: 'Sit facing the camera so your face is in the picture, then try again.',
   cameraOff: 'Camera off',
   organisationFallback: 'the test organiser',
 };
@@ -141,10 +146,10 @@ export class ProctorUI {
     const p = h('p', undefined, text);
     const btn = h('button', 'pk-btn', label); btn.type = 'button';
     btn.onclick = async () => {
-      btn.disabled = true;
+      btn.disabled = true; btn.textContent = this.s.working;
       const r = await action();
       if (r.ok) { done(); return; }
-      btn.disabled = false;
+      btn.disabled = false; btn.textContent = label;
       err.hidden = false; err.textContent = r.error; p.textContent = r.fix;
       (body.parentElement as HTMLElement).className = 'pk-step is-error';
       btn.focus();
