@@ -9,9 +9,10 @@ export type ProctorEventType =
   | 'started' | 'stopped' | 'context_changed'
   | 'paused' | 'resumed'
   | 'fullscreen_exit' | 'screen_share_stopped' | 'screen_share_resumed' | 'screen_surface_unverified'
-  | 'camera_lost' | 'camera_restored'
+  | 'camera_lost' | 'camera_restored' | 'virtual_camera' | 'camera_frozen'
+  | 'no_face' | 'face_returned' | 'multiple_faces' | 'face_detection_unavailable'
   | 'extra_display'
-  | 'focus_lost' | 'focus_returned'
+  | 'focus_lost' | 'focus_returned' | 'pointer_left_page' | 'answer_after_focus_loss'
   | 'copy_blocked' | 'cut_blocked' | 'paste_blocked' | 'contextmenu_blocked'
   | 'snapshot' | 'snapshot_upload_failed';
 
@@ -47,6 +48,19 @@ export interface ConsentInfo {
   seenBy?: string;
 }
 
+export interface FaceDetectionOptions {
+  /** ES module of `@mediapipe/tasks-vision`. Default: jsDelivr. Host it yourself if your content policy needs that. */
+  moduleUrl?: string;
+  /** Folder holding the MediaPipe `.wasm` files. Default: jsDelivr. */
+  wasmUrl?: string;
+  /** The face detector model file. Default: Google's public model storage. */
+  modelUrl?: string;
+  /** Detections below this confidence are ignored. Default 0.5. */
+  minConfidence?: number;
+  /** Use your own detector instead: return how many faces are in the video frame. */
+  detect?: (video: HTMLVideoElement) => number | Promise<number>;
+}
+
 export interface ProctorConfig {
   /** What must be true before and during the test. Each defaults to `true`. */
   require?: {
@@ -59,16 +73,26 @@ export interface ProctorConfig {
   };
   /** Regular webcam and screen frames. Set `false` to take none. */
   snapshots?: false | {
-    /** Seconds between frames. Default 10. */
+    /** Seconds between frames. Default 10. Same as `settings.snapshotIntervalSec`. */
     intervalSec?: number;
   };
+  /** Timings and thresholds. Anything left out keeps its default; see `defaultSettings`. */
+  settings?: Partial<import('./settings').ProctorSettings>;
+  /**
+   * Count faces on the candidate's own device to prompt them back into view and to report
+   * `no_face` and `multiple_faces`. Loads MediaPipe when the test starts. Set `false` to switch it off.
+   */
+  faceDetection?: false | FaceDetectionOptions;
   /** Block copy, cut, paste and the context menu on the page, and log each attempt. Default `true`. */
   blockClipboard?: boolean;
   consent?: ConsentInfo;
   /** `default` renders the system check, pause overlay and camera tile. `headless` renders nothing; drive it with events. */
   ui?: 'default' | 'headless';
   theme?: 'light' | 'dark' | 'auto';
-  /** Show the candidate their own camera in a small tile. Default `true`. */
+  /**
+   * The candidate's own camera preview. By default it is shown during the system check, so they can frame
+   * themselves, and hidden during the test. `true` keeps it during the test; `false` never shows it.
+   */
   cameraTile?: boolean;
   /** Show "Proctored by ProctorKit" on the system check. Default `true`. */
   badge?: boolean;

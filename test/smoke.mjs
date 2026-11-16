@@ -9,10 +9,15 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const server = http.createServer(async (req, res) => {
   try {
-    const p = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (!p.startsWith(root)) throw new Error('outside');
+    const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    // /frames/ serves private test images from PK_FACE_FRAMES; they are not part of this repository
+    const dir = url.startsWith('/frames/') ? process.env.PK_FACE_FRAMES : root;
+    if (!dir) throw new Error('no frames folder');
+    const p = path.join(dir, url.startsWith('/frames/') ? path.basename(url) : url);
+    if (!p.startsWith(dir)) throw new Error('outside');
     const data = await readFile(p);
-    res.writeHead(200, { 'Content-Type': p.endsWith('.js') ? 'text/javascript' : 'text/html' });
+    const type = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.jpg': 'image/jpeg', '.json': 'application/json' }[path.extname(p)] || (p.endsWith('.html') ? 'text/html' : 'application/octet-stream');
+    res.writeHead(200, { 'Content-Type': type });
     res.end(data);
   } catch { res.writeHead(404); res.end(); }
 });
@@ -85,6 +90,7 @@ const browser = await chromium.launch({
     window.snaps = []; window.evs = [];
     window.proctor = ProctorKit.createProctor({
       snapshots: { intervalSec: 2 },
+      faceDetection: false,
       consent: { organisation: 'Acme Hiring', retentionDays: 90 },
       context: { candidateId: 'c_1' },
       cloud: { endpoint: '/pk', sessionToken: 'tok_test' },
@@ -109,6 +115,7 @@ const browser = await chromium.launch({
   await page.locator('[data-step="consent"].is-active').waitFor();
 
   const consent = await page.locator('.pk-consent__list').innerText();
+  check('camera preview is shown during setup', await page.locator('.pk-cam.is-setup').isVisible() && (await page.locator('.pk-cam__status').innerText()) === 'Keep your face in this picture');
   check('consent states organisation, cadence and retention', consent.includes('Acme Hiring') && consent.includes('every 2 seconds') && consent.includes('90 days'));
   check('start is disabled until consent is ticked', await page.locator('[data-step="consent"] .pk-btn').isDisabled());
   await page.locator('.pk-check input').check();
@@ -117,7 +124,7 @@ const browser = await chromium.launch({
   check('checks pass', result.ok === true);
 
   check('start() succeeds', await page.evaluate(() => window.proctor.start()));
-  check('camera tile is shown', await page.locator('.pk-cam').isVisible());
+  check('camera preview is hidden once the test starts', (await page.locator('.pk-cam').count()) === 0);
   check('not blocked once running in full screen', !(await page.evaluate(() => window.proctor.isBlocked())));
 
   await page.evaluate(() => window.proctor.setContext({ questionId: 'Q07' }));
@@ -198,6 +205,133 @@ const browser = await chromium.launch({
   });
   check('headless: consent is required first', r.first.reason === 'consent' && r.second.ok);
   check('headless: pause and retry work without UI', r.started && r.pausedFor[0] === 'fullscreen' && r.fixed && r.hosts === 0, r.types.join(','));
+  await page.close();
+}
+
+// ---- 4. settings, on-device face count (stubbed detector), software camera, frozen feed, behaviour signals
+{
+  const context = await browser.newContext({ permissions: ['camera'] });
+  const page = await context.newPage();
+  const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
+  await page.addInitScript(mocks);
+  await page.addInitScript(() => {
+    // a still picture offered as a camera called "OBS Virtual Camera"
+    navigator.mediaDevices.getUserMedia = async () => {
+      const c = document.createElement('canvas'); c.width = 640; c.height = 480;
+      const g = c.getContext('2d'); g.fillStyle = '#567'; g.fillRect(0, 0, 640, 480); g.fillStyle = '#fc9'; g.fillRect(220, 120, 200, 240);
+      const st = c.captureStream();
+      setTimeout(() => { g.fillRect(0, 0, 1, 1); }, 200); // one repaint so the first frame is delivered
+      Object.defineProperty(st.getVideoTracks()[0], 'label', { value: 'OBS Virtual Camera' });
+      return st;
+    };
+  });
+  await page.goto(`${base}/test/page.html`);
+  await page.evaluate(() => {
+    window.snaps = []; window.evs = []; window.__faces = 1;
+    window.proctor = ProctorKit.createProctor({
+      cameraTile: true,
+      settings: { snapshotIntervalSec: 2, snapshotJitterSec: 1, absencePromptSec: 2, faceCheckIntervalSec: 0.4, frozenFeedFrames: 2, longFocusLossSec: 1, fastAnswerSec: 5, pointerAwayMinMs: 300, notASetting: 9, hideCameraAfterSetup: 'yes' },
+      faceDetection: { detect: () => window.__faces },
+      onEvent: (e) => window.evs.push(e),
+      onSnapshot: (s) => window.snaps.push({ kind: s.kind, ms: s.ms, reason: s.reason }),
+    });
+    window.checks = window.proctor.runChecks();
+  });
+  const types = () => page.evaluate(() => window.evs.map((e) => e.type));
+  const ev = (t) => page.evaluate((t) => window.evs.find((e) => e.type === t), t);
+  await page.locator('[data-step="camera"] .pk-btn').click();
+  await page.locator('[data-step="screen"] .pk-btn').click();
+  await page.locator('.pk-check input').check();
+  await page.locator('[data-step="consent"] .pk-btn').click();
+  await page.evaluate(() => window.checks);
+  check('software camera is flagged by name', (await ev('virtual_camera'))?.data.label === 'obs virtual camera' && (await ev('virtual_camera')).severity === 'high');
+  await page.evaluate(() => { window.proctor.setContext({ questionId: 'Q1' }); window.proctor.start(); });
+  check('cameraTile: true keeps the preview during the test', await page.locator('.pk-cam:not(.is-setup)').isVisible());
+  check('settings reach the SDK; unknown or mistyped ones are ignored', (await ev('started')).data.intervalSec === 2);
+
+  await sleep(900);
+  await page.evaluate(() => { window.__faces = 0; });
+  await sleep(3200);
+  const gone = await ev('no_face');
+  check('no face for the set time is reported', !!gone && gone.severity === 'warn' && gone.data.seconds >= 2, gone ? `${gone.data.seconds} s` : '');
+  check('candidate is asked to move back into view', (await page.locator('.pk-notice').innerText()) === 'Move back into view of your camera.');
+  check('the prompt does not block the test', !(await page.evaluate(() => window.proctor.isBlocked())));
+  await page.evaluate(() => { window.__faces = 1; });
+  await sleep(900);
+  check('prompt clears when the face returns', (await page.locator('.pk-notice').count()) === 0 && (await types()).includes('face_returned'));
+  await page.evaluate(() => { window.__faces = 2; });
+  await sleep(1400);
+  const many = (await types()).filter((t) => t === 'multiple_faces').length;
+  check('two faces are reported once per episode, with no prompt', many === 1 && (await page.locator('.pk-notice').count()) === 0, `${many} event(s)`);
+  await page.evaluate(() => { window.__faces = 1; });
+
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await sleep(1400);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await sleep(300);
+  await page.evaluate(() => window.proctor.setContext({ questionId: 'Q2' }));
+  const fast = await ev('answer_after_focus_loss');
+  check('moving on right after a long focus loss is reported against the question answered', !!fast && fast.context.questionId === 'Q1' && fast.data.awayMs >= 1000 && fast.data.sinceReturnMs < 5000, fast ? JSON.stringify(fast.data) : '');
+  check('focus loss records time since the question appeared', (await ev('focus_lost')).data.sinceQuestionMs > 0);
+  await page.evaluate(() => window.proctor.setContext({ questionId: 'Q3' }));
+  check('a normal move to the next question is not reported', (await types()).filter((t) => t === 'answer_after_focus_loss').length === 1);
+
+  await page.evaluate(() => document.documentElement.dispatchEvent(new Event('mouseleave')));
+  await sleep(500);
+  await page.evaluate(() => document.documentElement.dispatchEvent(new Event('mouseenter')));
+  const ptr = await ev('pointer_left_page');
+  check('pointer leaving the page is reported', !!ptr && ptr.data.awayMs >= 300, ptr ? `${ptr.data.awayMs} ms` : '');
+
+  await sleep(4000);
+  const frozen = await ev('camera_frozen');
+  check('identical webcam frames are reported as a frozen feed, once', !!frozen && frozen.severity === 'high' && (await types()).filter((t) => t === 'camera_frozen').length === 1, frozen ? `${frozen.data.frames} frames` : '');
+  const shots = (await page.evaluate(() => window.snaps)).filter((s) => s.kind === 'webcam' && s.reason === 'interval').map((s) => s.ms);
+  const gaps = shots.slice(2).map((ms, i) => ms - shots[i + 1]);
+  check('capture timing varies within the allowed range', gaps.length >= 3 && gaps.every((g) => g > 900 && g < 3200) && Math.max(...gaps) - Math.min(...gaps) > 50, gaps.join(', ') + ' ms');
+  await page.evaluate(() => window.proctor.stop());
+  check('no page errors', errors.length === 0, errors.join('; '));
+  await context.close();
+}
+
+// ---- 5. the real MediaPipe face detector on real-looking frames. Needs the model file and a private frames folder:
+//      curl -o test/blaze_face_short_range.tflite https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite
+//      PK_FACE_FRAMES=/path/to/frames npm test      (PK_FACE_EVAL=1 also prints the count for every frame in manifest.json)
+const haveModel = await readFile(path.join(root, 'test/blaze_face_short_range.tflite')).then(() => true, () => false);
+if (!process.env.PK_FACE_FRAMES || !haveModel) console.log('skip face detector test (set PK_FACE_FRAMES and download the model to run it)');
+else {
+  const page = await browser.newPage();
+  const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto(`${base}/test/page.html`);
+  const frames = process.env.PK_FACE_EVAL ? JSON.parse(await readFile(path.join(process.env.PK_FACE_FRAMES, 'manifest.json'), 'utf8')).map((f) => f.id) : ['one_daylight_1', 'nobody_empty_chair_1', 'two_side_by_side_1'];
+  const counts = await page.evaluate(async (frames) => {
+    // show each image through a canvas stream, the way a camera feed reaches the SDK
+    const c = document.createElement('canvas'); c.width = 600; c.height = 450;
+    const g = c.getContext('2d');
+    g.fillRect(0, 0, 600, 450);
+    const v = document.createElement('video'); v.muted = true; v.srcObject = c.captureStream(); void v.play().catch(() => {});
+    for (let i = 0; i < 50 && !v.videoWidth; i++) { g.fillRect(0, 0, 1 + (i % 2), 1); await new Promise((r) => setTimeout(r, 100)); }
+    const t0 = performance.now();
+    const counter = await ProctorKit.loadFaceCounter({ moduleUrl: '/node_modules/@mediapipe/tasks-vision/vision_bundle.mjs', wasmUrl: '/node_modules/@mediapipe/tasks-vision/wasm', modelUrl: '/test/blaze_face_short_range.tflite' });
+    const loadMs = Math.round(performance.now() - t0);
+    const out = {}; let detectMs = 0;
+    for (const id of frames) {
+      const img = new Image(); img.src = `/frames/${id}.jpg`; await img.decode();
+      g.drawImage(img, 0, 0, 600, 450); g.fillRect(0, 0, 1, 1);
+      await new Promise((r) => setTimeout(r, 180));
+      const t = performance.now(); out[id] = await counter.count(v); detectMs += performance.now() - t;
+    }
+    counter.close();
+    return { out, loadMs, perFrameMs: Math.round(detectMs / frames.length) };
+  }, frames);
+  check('face detector: one person -> 1 face', counts.out.one_daylight_1 === 1, `loaded in ${counts.loadMs} ms, ${counts.perFrameMs} ms per frame`);
+  check('face detector: empty chair -> 0 faces', counts.out.nobody_empty_chair_1 === 0);
+  check('face detector: two people side by side -> 2 faces', counts.out.two_side_by_side_1 === 2);
+  check('face detector: no page errors', errors.length === 0, errors.join('; '));
+  if (process.env.PK_FACE_EVAL) {
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(process.env.PK_FACE_EVAL === '1' ? '/tmp/face_eval.json' : process.env.PK_FACE_EVAL, JSON.stringify(counts.out, null, 1));
+    console.log('face counts written for', Object.keys(counts.out).length, 'frames');
+  }
   await page.close();
 }
 

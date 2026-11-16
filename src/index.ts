@@ -1,7 +1,11 @@
 import { ProctorUI, defaultStrings, type StepSpec } from './ui';
 import type { CheckResult, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types';
+import { resolveSettings, type ProctorSettings } from './settings';
+import { loadFaceCounter, type FaceCounter } from './face';
 
-export type { CheckResult, ConsentInfo, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types';
+export type { CheckResult, ConsentInfo, FaceDetectionOptions, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types';
+export { defaultSettings, type ProctorSettings } from './settings';
+export { loadFaceCounter, faceDefaults, type FaceCounter } from './face';
 export { defaultStrings } from './ui';
 
 type PauseReason = 'fullscreen' | 'screen' | 'camera' | 'display';
@@ -10,8 +14,6 @@ type Listener = (event: ProctorEvent) => void;
 
 const PAUSE_ORDER: PauseReason[] = ['display', 'camera', 'screen', 'fullscreen'];
 const CLIPBOARD = ['copy', 'cut', 'paste', 'contextmenu'] as const;
-const MIN_AWAY_MS = 800; // shorter focus blips (a notification, a permission prompt) are noise
-const LONG_AWAY_MS = 5000;
 
 /** Creates a proctor for one test session. Nothing is requested or recorded until `runChecks()` is called. */
 export function createProctor(config: ProctorConfig = {}): Proctor {
@@ -21,6 +23,9 @@ export function createProctor(config: ProctorConfig = {}): Proctor {
 export class Proctor {
   private readonly need: { camera: boolean; screenShare: boolean; fullscreen: boolean; singleDisplay: boolean };
   private readonly intervalSec: number;
+  /** Every timing and threshold in use; see settings.ts. */
+  private readonly set: ProctorSettings;
+  private readonly tile: 'never' | 'setup' | 'always';
   private readonly s: Record<string, string>;
   private ui: ProctorUI | null = null;
   private listeners = new Map<string, Set<Listener>>();
@@ -35,7 +40,7 @@ export class Proctor {
   private running = false;
   private startedAt = 0;
   private endedAt = 0;
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private displayTimer: ReturnType<typeof setInterval> | null = null;
 
   private pauses = new Map<PauseReason, number>();
@@ -44,6 +49,22 @@ export class Proctor {
   private leftAt = 0;
   private awayMs = 0;
   private awayShot: ReturnType<typeof setTimeout> | null = null;
+  private questionSince = 0;
+  private longReturn: { at: number; awayMs: number } | null = null;
+  private pointerLeftAt = 0;
+  private lastBackAt = 0;
+
+  private camSig: Uint8Array | null = null;
+  private camSigAt = 0;
+  private sameFrames = 1;
+  private frozenReported = false;
+
+  private faces: FaceCounter | null = null;
+  private faceTimer: ReturnType<typeof setInterval> | null = null;
+  private faceBusy = false;
+  private noFaceSince = 0;
+  private absent = false;
+  private manyFaces = 0;
 
   private uploads: Snapshot[] = [];
   private uploading = 0;
@@ -53,7 +74,9 @@ export class Proctor {
   constructor(private readonly config: ProctorConfig = {}) {
     const r = config.require || {};
     this.need = { camera: r.camera !== false, screenShare: r.screenShare !== false, fullscreen: r.fullscreen !== false, singleDisplay: r.singleDisplay !== false };
-    this.intervalSec = config.snapshots === false ? 0 : Math.max(2, Number(config.snapshots?.intervalSec) || 10);
+    this.set = resolveSettings(config.settings, config.snapshots ? config.snapshots.intervalSec : undefined);
+    this.intervalSec = config.snapshots === false ? 0 : this.set.snapshotIntervalSec;
+    this.tile = config.cameraTile === false || config.ui === 'headless' ? 'never' : config.cameraTile === true || !this.set.hideCameraAfterSetup ? 'always' : 'setup';
     this.s = { ...defaultStrings };
     for (const [k, v] of Object.entries(config.strings || {})) if (typeof v === 'string') this.s[k] = v;
     this.context = { ...(config.context || {}) };
@@ -70,6 +93,15 @@ export class Proctor {
 
   /** Merge values into the context attached to every later event and snapshot, for example `{ questionId: 'Q07' }`. */
   setContext(patch: ProctorContext): void {
+    if (this.running && 'questionId' in patch && patch.questionId !== this.context.questionId) {
+      const now = Date.now();
+      // left the test, came back, and moved on almost at once: reported against the question just answered
+      if (this.longReturn && now - this.longReturn.at <= this.set.fastAnswerSec * 1000) {
+        this.emit('answer_after_focus_loss', 'warn', { sinceReturnMs: now - this.longReturn.at, awayMs: this.longReturn.awayMs });
+      }
+      this.longReturn = null;
+      this.questionSince = now;
+    }
     this.context = { ...this.context, ...patch };
     if (this.running) this.emit('context_changed', 'info', { ...patch });
   }
@@ -123,7 +155,9 @@ export class Proctor {
       this.cam = stream;
       stream.getVideoTracks()[0]?.addEventListener('ended', () => { if (this.cam === stream) this.onCameraLost(); });
       if (this.camV) { this.camV.srcObject = stream; void this.camV.play().catch(noop); }
-      if (this.running && this.config.cameraTile !== false) this.ui?.showCamera(stream);
+      if (this.running ? this.tile === 'always' : this.tile !== 'never') this.view().showCamera(stream, !this.running);
+      this.checkCameraName(stream);
+      this.camSig = null; this.sameFrames = 1; this.frozenReported = false;
       this.emit(this.running ? 'camera_restored' : 'check_passed', 'info', this.running ? undefined : { check: 'camera' });
       return { ok: true };
     } catch (e) {
@@ -180,18 +214,23 @@ export class Proctor {
 
     if (this.cam) this.camV = feed(this.cam);
     if (this.scr) this.scrV = feed(this.scr);
-    if (this.cam && this.config.cameraTile !== false && this.config.ui !== 'headless') this.view().showCamera(this.cam);
+    this.questionSince = this.startedAt;
+    if (this.cam && this.tile === 'always') this.view().showCamera(this.cam);
+    else this.ui?.hideCamera();
 
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('blur', this.onLeft);
     window.addEventListener('focus', this.onBack);
+    document.documentElement.addEventListener('mouseleave', this.onPointerLeft);
+    document.documentElement.addEventListener('mouseenter', this.onPointerBack);
     if (this.config.blockClipboard !== false) CLIPBOARD.forEach((t) => document.addEventListener(t, this.onClipboard, true));
     if (this.need.singleDisplay) this.displayTimer = setInterval(this.checkDisplay, 3000);
     if (this.intervalSec) {
       setTimeout(() => this.tick(), 1500); // first frames once the streams are producing
-      this.timer = setInterval(() => this.tick(), this.intervalSec * 1000);
+      this.schedule();
     }
+    if (this.cam && this.config.faceDetection !== false) void this.startFaceChecks();
     if (this.config.cloud) this.flushTimer = setInterval(() => void this.flushEvents(), 5000);
 
     if (this.need.fullscreen && !document.fullscreenElement) {
@@ -214,10 +253,14 @@ export class Proctor {
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('blur', this.onLeft);
     window.removeEventListener('focus', this.onBack);
+    document.documentElement.removeEventListener('mouseleave', this.onPointerLeft);
+    document.documentElement.removeEventListener('mouseenter', this.onPointerBack);
     CLIPBOARD.forEach((t) => document.removeEventListener(t, this.onClipboard, true));
-    for (const t of [this.timer, this.displayTimer, this.flushTimer]) if (t) clearInterval(t);
-    if (this.awayShot) clearTimeout(this.awayShot);
-    this.timer = this.displayTimer = this.flushTimer = this.awayShot = null;
+    for (const t of [this.displayTimer, this.flushTimer, this.faceTimer]) if (t) clearInterval(t);
+    for (const t of [this.timer, this.awayShot]) if (t) clearTimeout(t);
+    this.timer = this.displayTimer = this.flushTimer = this.awayShot = this.faceTimer = null;
+    this.faces?.close(); this.faces = null;
+    this.noFaceSince = 0; this.absent = false; this.manyFaces = 0; this.pointerLeftAt = 0; this.longReturn = null;
     const cam = this.cam, scr = this.scr;
     this.cam = this.scr = this.camV = this.scrV = null; // cleared first so the 'ended' handlers do not treat this as a loss
     for (const st of [cam, scr]) st?.getTracks().forEach((t) => t.stop());
@@ -342,7 +385,7 @@ export class Proctor {
   private onCameraLost(): void {
     if (!this.running) return;
     this.emit('camera_lost', 'high');
-    if (this.config.cameraTile !== false) this.ui?.showCamera(null);
+    if (this.tile === 'always') this.ui?.showCamera(null);
     if (this.need.camera) this.pause('camera');
   }
 
@@ -358,7 +401,7 @@ export class Proctor {
     // our own overlays and the browser's permission prompts take focus; that is not the candidate leaving
     if (!this.running || this.leftAt || this.isBlocked()) return;
     this.leftAt = Date.now();
-    this.awayShot = setTimeout(() => { if (this.leftAt) { this.emit('focus_lost', 'warn'); this.snap('event'); } }, MIN_AWAY_MS);
+    this.awayShot = setTimeout(() => { if (this.leftAt) { this.emit('focus_lost', 'warn', { sinceQuestionMs: this.leftAt - this.questionSince }); this.snap('event'); } }, this.set.minFocusLossMs);
   };
 
   private onBack = (): void => {
@@ -366,11 +409,101 @@ export class Proctor {
     const ms = Date.now() - this.leftAt;
     this.leftAt = 0;
     if (this.awayShot) { clearTimeout(this.awayShot); this.awayShot = null; }
-    if (ms < MIN_AWAY_MS) return;
+    this.lastBackAt = Date.now();
+    if (ms < this.set.minFocusLossMs) return;
     this.awayMs += ms;
-    this.emit('focus_returned', ms >= LONG_AWAY_MS ? 'warn' : 'info', { awayMs: ms });
+    const long = ms >= this.set.longFocusLossSec * 1000;
+    if (long) this.longReturn = { at: this.lastBackAt, awayMs: ms };
+    this.emit('focus_returned', long ? 'warn' : 'info', { awayMs: ms });
     this.snap('event');
   };
+
+  // The pointer leaving a full-screen page while the page keeps focus usually means it is over another
+  // window drawn on top. A focus loss is reported by its own events, so those cases are skipped here.
+  private onPointerLeft = (): void => {
+    if (this.running && !this.leftAt && !this.isBlocked()) this.pointerLeftAt = Date.now();
+  };
+
+  private onPointerBack = (): void => {
+    const left = this.pointerLeftAt;
+    this.pointerLeftAt = 0;
+    if (!left || !this.running || this.leftAt || this.lastBackAt >= left) return;
+    const ms = Date.now() - left;
+    if (ms >= this.set.pointerAwayMinMs) this.emit('pointer_left_page', 'info', { awayMs: ms });
+  };
+
+  /** A software camera can replay a recording. The name is the only sign a browser gives. */
+  private checkCameraName(stream: MediaStream): void {
+    const label = (stream.getVideoTracks()[0]?.label || '').toLowerCase();
+    const hit = label && this.set.virtualCameraNames.find((n) => n && label.includes(n));
+    if (hit) this.emit('virtual_camera', 'high', { label: label.slice(0, 80) });
+  }
+
+  /** A real sensor never produces two identical frames; a still image or a covered, clamped feed does. */
+  private checkFrozen(canvas: HTMLCanvasElement, reason: Snapshot['reason']): void {
+    const now = Date.now();
+    if (reason !== 'interval' || now - this.camSigAt < 1500) return;
+    let px: Uint8ClampedArray;
+    try { px = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data; } catch { return; }
+    const sig = new Uint8Array(Math.ceil(px.length / 53));
+    for (let i = 0, j = 0; i < px.length; i += 53, j++) sig[j] = px[i];
+    const prev = this.camSig;
+    const same = !!prev && prev.length === sig.length && sig.every((v, i) => v === prev[i]);
+    this.camSig = sig; this.camSigAt = now;
+    if (!same) { this.sameFrames = 1; this.frozenReported = false; return; }
+    this.sameFrames++;
+    if (this.sameFrames >= this.set.frozenFeedFrames && !this.frozenReported) {
+      this.frozenReported = true;
+      this.emit('camera_frozen', 'high', { frames: this.sameFrames });
+    }
+  }
+
+  private schedule(): void {
+    if (!this.running || !this.intervalSec) return;
+    const wait = this.intervalSec + (Math.random() * 2 - 1) * this.set.snapshotJitterSec;
+    this.timer = setTimeout(() => { this.tick(); this.schedule(); }, Math.max(1, wait) * 1000);
+  }
+
+  // ---- on-device face count. Failing to load it never stops the test.
+
+  private async startFaceChecks(): Promise<void> {
+    try {
+      const faces = await loadFaceCounter(this.config.faceDetection || {});
+      if (!this.running) { faces.close(); return; }
+      this.faces = faces;
+    } catch (e) {
+      this.emit('face_detection_unavailable', 'info', { error: errName(e) });
+      return;
+    }
+    this.faceTimer = setInterval(() => void this.faceCheck(), this.set.faceCheckIntervalSec * 1000);
+  }
+
+  private async faceCheck(): Promise<void> {
+    const video = this.camV;
+    if (!this.running || this.faceBusy || !this.faces) return;
+    if (this.pauses.size || !video || !video.videoWidth || !live(this.cam)) { this.noFaceSince = 0; this.manyFaces = 0; return; }
+    this.faceBusy = true;
+    let n: number;
+    try { n = await this.faces.count(video); } catch { return; } finally { this.faceBusy = false; }
+    if (!this.running) return;
+    const now = Date.now();
+    if (n === 0) {
+      if (!this.noFaceSince) this.noFaceSince = now;
+      else if (!this.absent && now - this.noFaceSince >= this.set.absencePromptSec * 1000) {
+        this.absent = true;
+        this.emit('no_face', 'warn', { seconds: Math.round((now - this.noFaceSince) / 1000) });
+        this.snap('event');
+        if (this.config.ui !== 'headless') this.view().showNotice(this.s.absencePrompt);
+      }
+    } else {
+      if (this.absent) { this.emit('face_returned', 'info', { awayMs: now - this.noFaceSince }); this.ui?.hideNotice(); }
+      this.noFaceSince = 0; this.absent = false;
+    }
+    if (n >= 2) {
+      this.manyFaces++;
+      if (this.manyFaces === this.set.multipleFacesChecks) { this.emit('multiple_faces', 'warn', { faces: n }); this.snap('event'); }
+    } else this.manyFaces = 0;
+  }
 
   private onClipboard = (e: Event): void => {
     e.preventDefault();
@@ -393,6 +526,7 @@ export class Proctor {
         canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
         canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
         dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        if (kind === 'webcam') this.checkFrozen(canvas, reason);
       } catch { continue; }
       const ev = this.emit('snapshot', 'info', { kind, reason, bytes: Math.round(dataUrl.length * 0.75) });
       const shot: Snapshot = { kind, dataUrl, reason, at: ev.at, ms: ev.ms, context: ev.context };

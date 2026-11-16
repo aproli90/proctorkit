@@ -13,7 +13,7 @@ export const defaultStrings: Record<string, string> = {
   screenCancelled: 'Screen sharing was cancelled.',
   screenWrongSurface: 'That shared a window or tab.',
   consentTitle: 'Review what is recorded',
-  consentWhat: 'A webcam photo and a screenshot every {interval} seconds, and when you leave the test window.',
+  consentWhat: 'A webcam photo and a screenshot about every {interval} seconds, and when you leave the test window. Your camera stays on during the test even when its preview is hidden.',
   consentWhatNoSnapshots: 'When you leave the test window or full screen, and copy or paste attempts.',
   consentWhy: 'So {organisation} can confirm the test was taken fairly. Automated checks flag moments for a person to review.',
   consentKept: '{days} days, then deleted.',
@@ -35,6 +35,8 @@ export const defaultStrings: Record<string, string> = {
   pauseDisplay: 'A second screen is connected. Disconnect it to continue.',
   pauseDisplayButton: 'Check again',
   cameraOn: 'Camera on',
+  cameraFraming: 'Keep your face in this picture',
+  absencePrompt: 'Move back into view of your camera.',
   cameraOff: 'Camera off',
   organisationFallback: 'the test organiser',
 };
@@ -61,6 +63,7 @@ export class ProctorUI {
   private checks: HTMLElement | null = null;
   private pauseEl: HTMLElement | null = null;
   private cam: HTMLElement | null = null;
+  private notice: HTMLElement | null = null;
 
   constructor(private s: Record<string, string>, theme: 'light' | 'dark' | 'auto', private badge: boolean) {
     this.host = h('div');
@@ -178,7 +181,8 @@ export class ProctorUI {
 
   hidePause(): void { this.pauseEl?.remove(); this.pauseEl = null; }
 
-  showCamera(stream: MediaStream | null): void {
+  /** `setup` lifts the preview above the system check and labels it as a framing aid. */
+  showCamera(stream: MediaStream | null, setup = false): void {
     if (!this.cam) {
       this.cam = h('div', 'pk-cam');
       const v = h('video'); v.muted = true; v.playsInline = true; v.autoplay = true;
@@ -189,8 +193,19 @@ export class ProctorUI {
     v.srcObject = stream;
     if (stream) v.play().catch(() => { /* autoplay may wait for a gesture */ });
     this.cam.classList.toggle('is-off', !stream);
-    (this.cam.querySelector('.pk-cam__status') as HTMLElement).textContent = stream ? this.s.cameraOn : this.s.cameraOff;
+    this.cam.classList.toggle('is-setup', setup);
+    (this.cam.querySelector('.pk-cam__status') as HTMLElement).textContent = !stream ? this.s.cameraOff : setup ? this.s.cameraFraming : this.s.cameraOn;
   }
 
-  destroy(): void { this.host.remove(); this.checks = this.pauseEl = this.cam = null; }
+  hideCamera(): void { this.cam?.remove(); this.cam = null; }
+
+  /** A small message that does not block the test. */
+  showNotice(text: string): void {
+    if (!this.notice) { this.notice = h('div', 'pk-notice'); this.notice.setAttribute('role', 'status'); this.wrap.append(this.notice); }
+    this.notice.textContent = text;
+  }
+
+  hideNotice(): void { this.notice?.remove(); this.notice = null; }
+
+  destroy(): void { this.host.remove(); this.checks = this.pauseEl = this.cam = this.notice = null; }
 }
