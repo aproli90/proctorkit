@@ -232,7 +232,24 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 `sessionToken` must be a short-lived token your server issues for one session. Never put an API key in the page. Failed uploads are retried and then dropped with a `snapshot_upload_failed` event; a backend outage never stops the test.
 
-A hosted backend with stored evidence, automated checks on each frame and a reviewer dashboard is in development.
+### ProctorKit checks (hosted, optional)
+
+ProctorKit also runs a hosted backend you can point `cloud` at. It stores the frames, runs automated checks on each one (another person near the candidate, a phone in use, another app on screen, the test window hidden), scores each session from 0 to 100, and gives you a private report link per candidate, laid out by question. The first 50 candidates are free, then ₹15 per 30 minutes of testing.
+
+1. Your server creates a session with your API key: `POST /v1/sessions` with `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
+2. Pass `endpoint`, `sessionToken` and `settings` to the page:
+
+```js
+const proctor = createProctor({
+  cloud: { endpoint: s.endpoint, sessionToken: s.sessionToken },
+  settings: s.settings,
+  consent: { organisation: s.organisation, retentionDays: s.retentionDays },
+});
+```
+
+3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET /v1/sessions/{sessionId}`.
+
+Full steps, examples and a prompt for coding agents are in the docs on the ProctorKit site, which also has a demo you can try to cheat.
 
 ## Privacy
 

@@ -1,18 +1,22 @@
 {
   "name": "proctorkit",
   "version": "0.1.0",
-  "description": "Proctoring you can add to any web quiz: system checks, consent, full-screen and focus guards, screen-share enforcement, snapshots and an event log. No backend required.",
+  "description": "Proctoring for the quiz you already built: a browser SDK for system checks, consent, full-screen and entire-screen-share guards, camera and face-in-view checks, snapshots and a per-question event log. Optional hosted checks and report links.",
   "keywords": [
     "proctoring",
     "proctor",
+    "online-proctoring",
     "exam",
     "quiz",
     "assessment",
+    "hiring-test",
     "anti-cheat",
+    "cheating-detection",
     "online-test",
     "invigilation",
     "webcam",
-    "screen-share"
+    "screen-share",
+    "remote-exam"
   ],
   "license": "MIT",
   "author": "Ashhar",
@@ -48,5 +52,9 @@
     "esbuild": "^0.25.0",
     "playwright": "^1.50.0",
     "typescript": "^5.6.0"
+  },
+  "homepage": "https://github.com/aproli90/proctorkit#readme",
+  "bugs": {
+    "url": "https://github.com/aproli90/proctorkit/issues"
   }
 }
