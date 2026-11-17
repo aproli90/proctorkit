@@ -243,7 +243,7 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 ### ProctorKit checks (hosted, optional)
 
-ProctorKit also runs a hosted backend you can point `cloud` at. It stores the frames, runs automated checks on each one (another person near the candidate, a phone in use, another app on screen, the test window hidden), scores each session from 0 to 100, and gives you a private report link per candidate, laid out by question. The first 50 candidates are free, then ₹15 per 30 minutes of testing.
+ProctorKit also runs a hosted backend you can point `cloud` at. It stores the frames, runs automated checks on each one (another person near the candidate, a phone in use, another app on screen, the test window hidden), scores each session from 0 to 100, and gives you a private report link per candidate, laid out by question. The first 50 candidates are free, then ₹15 per candidate at launch price (list ₹25); a candidate is one test of up to 30 minutes, and longer tests are charged in proportion.
 
 1. Your server creates a session with your API key: `POST /v1/sessions` with `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
 2. Pass `endpoint`, `sessionToken` and `settings` to the page:
