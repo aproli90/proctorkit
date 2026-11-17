@@ -309,6 +309,17 @@ export class Proctor {
     return this.pauses.size > 0 || !!this.ui?.covering;
   }
 
+  /**
+   * Milliseconds the candidate has actually had for the test: time since `start()`, minus every pause.
+   * Drive your countdown from this and it stops by itself while the test is paused.
+   */
+  activeMs(): number {
+    if (!this.startedAt) return 0;
+    const end = this.endedAt || Date.now();
+    const paused = this.pausedMs + (this.pausedSince ? end - this.pausedSince : 0);
+    return Math.max(0, end - this.startedAt - paused);
+  }
+
   /** Why the test is paused right now, most important first. Empty when it is not paused. */
   pausedFor(): PauseReason[] {
     return PAUSE_ORDER.filter((r) => this.pauses.has(r));

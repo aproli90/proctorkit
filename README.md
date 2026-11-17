@@ -162,10 +162,31 @@ Call `setContext({ questionId })` whenever the question changes. The per-questio
 | `on(type, fn)` | `() => void` | Listens for one event type or `'*'`; returns an unsubscribe function |
 | `isBlocked()` | `boolean` | True while the system check or a pause overlay is up |
 | `pausedFor()` | `string[]` | Current pause reasons: `fullscreen`, `screen`, `camera`, `display` |
+| `activeMs()` | `number` | Time since `start()` minus all pauses. Use it for your countdown |
 | `retry(reason)` | `Promise<boolean>` | Tries to fix one pause reason (for headless hosts) |
 | `getReport()` | `ProctorReport` | The report so far, without stopping |
 | `support()` | `{ ok, missing }` | Missing browser features, without prompting |
 | `requestCamera()`, `requestScreenShare()`, `giveConsent()` | | The individual steps, for headless hosts |
+
+## Pauses and your timer
+
+ProctorKit pauses the test by itself when the candidate leaves full screen, stops sharing the screen, loses the camera or plugs in a second display, and resumes it when the problem is fixed. It has no timer of its own; your page keeps the clock. Two ways to stay in step:
+
+```js
+// 1. Let ProctorKit do the arithmetic: the time used never includes a pause.
+const LIMIT_MS = 30 * 60 * 1000;
+setInterval(() => {
+  const left = LIMIT_MS - proctor.activeMs();
+  showCountdown(left);
+  if (left <= 0) submitTest();
+}, 500);
+
+// 2. Or listen, and stop and start your own timer.
+proctor.on('paused', (e) => { myTimer.stop(); });            // e.data.reason: fullscreen | screen | camera | display
+proctor.on('resumed', (e) => { myTimer.start(); });          // e.data.pausedMs: how long this pause lasted
+```
+
+`paused` can fire more than once while the test is already paused, once per reason; `resumed` fires once, when every reason is cleared. `isBlocked()` is true for the whole time.
 
 ## Events
 

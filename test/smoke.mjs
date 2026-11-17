@@ -124,6 +124,7 @@ const browser = await chromium.launch({
   check('checks pass', result.ok === true);
 
   check('start() succeeds', await page.evaluate(() => window.proctor.start()));
+  await page.evaluate(() => { window.pauseLog = []; window.proctor.on('paused', (e) => window.pauseLog.push(['paused', e.data.reason])); window.proctor.on('resumed', (e) => window.pauseLog.push(['resumed', e.data.pausedMs])); });
   check('camera preview is hidden once the test starts', (await page.locator('.pk-cam').count()) === 0);
   check('not blocked once running in full screen', !(await page.evaluate(() => window.proctor.isBlocked())));
 
@@ -177,6 +178,9 @@ const browser = await chromium.launch({
 
   await sleep(5500); // let the event batch flush
   const report = await page.evaluate(() => window.proctor.stop());
+  const used = await page.evaluate(() => ({ active: window.proctor.activeMs(), log: window.pauseLog }));
+  check('host listeners hear every pause and resume', used.log.some((x) => x[0] === 'paused') && used.log.filter((x) => x[0] === 'resumed').length >= 1 && used.log.filter((x) => x[0] === 'resumed').every((x) => x[1] > 0), `${used.log.filter((x) => x[0] === 'paused').length} paused, ${used.log.filter((x) => x[0] === 'resumed').length} resumed`);
+  check('activeMs() is the test time minus the pauses', Math.abs(used.active - (report.durationMs - report.pausedMs)) < 50 && used.active < report.durationMs, `${used.active} ms of ${report.durationMs}`);
   check('report totals', report.durationMs > 10000 && report.pausedMs > 0 && report.awayMs >= 800 && report.counts.snapshot > 3, `duration ${report.durationMs} paused ${report.pausedMs} away ${report.awayMs}`);
   check('report keeps context', report.context.questionId === 'Q07');
   check('interface is removed on stop', (await page.locator('[data-proctorkit]').count()) === 0);
