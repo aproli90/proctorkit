@@ -6,7 +6,7 @@ export type ProctorContext = Record<string, string | number | boolean | null>;
 
 export type ProctorEventType =
   | 'unsupported' | 'check_passed' | 'check_failed' | 'consent_given'
-  | 'started' | 'stopped' | 'context_changed'
+  | 'started' | 'stopped' | 'context_changed' | 'cloud_connected' | 'cloud_unavailable'
   | 'paused' | 'resumed'
   | 'fullscreen_exit' | 'screen_share_stopped' | 'screen_share_resumed' | 'screen_surface_unverified'
   | 'camera_lost' | 'camera_restored' | 'virtual_camera' | 'camera_frozen'
@@ -110,6 +110,13 @@ export interface ProctorConfig {
    * `sessionToken` must be a short-lived token issued by your server; never put an API key in the page.
    */
   cloud?: { endpoint: string; sessionToken: string };
+  /**
+   * Your page key (`pk_pub_...`) from the dashboard. The quickest way to start: the page opens its own session.
+   * It works only on the domains listed on the key. Use `cloud` with a server-issued token instead for paid usage.
+   */
+  key?: string;
+  /** Where the ProctorKit service lives. Leave unset. */
+  apiBase?: string;
 }
 
 export interface CheckResult {

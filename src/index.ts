@@ -12,6 +12,9 @@ type PauseReason = 'fullscreen' | 'screen' | 'camera' | 'display';
 type Outcome = { ok: true } | { ok: false; error: string; fix: string };
 type Listener = (event: ProctorEvent) => void;
 
+/** The ProctorKit service. Override with `apiBase` to use your own backend. */
+const DEFAULT_API = 'https://bidwwbqamgnhjmrpvjtg.supabase.co/functions/v1/pk-api';
+
 const PAUSE_ORDER: PauseReason[] = ['display', 'camera', 'screen', 'fullscreen'];
 const CLIPBOARD = ['copy', 'cut', 'paste', 'contextmenu'] as const;
 
@@ -22,9 +25,9 @@ export function createProctor(config: ProctorConfig = {}): Proctor {
 
 export class Proctor {
   private readonly need: { camera: boolean; screenShare: boolean; fullscreen: boolean; singleDisplay: boolean };
-  private readonly intervalSec: number;
+  private intervalSec: number;
   /** Every timing and threshold in use; see settings.ts. */
-  private readonly set: ProctorSettings;
+  private set: ProctorSettings;
   private readonly tile: 'never' | 'setup' | 'always';
   private readonly s: Record<string, string>;
   private ui: ProctorUI | null = null;
@@ -71,6 +74,10 @@ export class Proctor {
   private uploading = 0;
   private outbox: ProctorEvent[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private cloud: { endpoint: string; sessionToken: string } | null;
+  private consent: NonNullable<ProctorConfig['consent']>;
+  /** The session this proctor reports to, once known. */
+  sessionId: string | null = null;
 
   constructor(private readonly config: ProctorConfig = {}) {
     const r = config.require || {};
@@ -81,9 +88,37 @@ export class Proctor {
     this.s = { ...defaultStrings };
     for (const [k, v] of Object.entries(config.strings || {})) if (typeof v === 'string') this.s[k] = v;
     this.context = { ...(config.context || {}) };
+    this.cloud = config.cloud ?? null;
+    this.consent = { ...(config.consent || {}) };
   }
 
   // ------------------------------------------------------------------ public API
+
+  /**
+   * With a page key: opens this candidate's session with the ProctorKit service. Called by runChecks().
+   * Fails open: if the key is refused or the service cannot be reached, the test runs with on-device checks only,
+   * a `cloud_unavailable` event says why, and the reason is logged to the console for the developer.
+   */
+  private async connect(): Promise<void> {
+    const base = (this.config.apiBase || DEFAULT_API).replace(/\/$/, '');
+    try {
+      const res = await fetch(`${base}/page/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: this.config.key, externalId: this.context.candidateId ?? undefined, metadata: this.context }) });
+      const body = await res.json().catch(() => ({})) as { sessionId?: string; sessionToken?: string; endpoint?: string; organisation?: string; retentionDays?: number; settings?: Partial<ProctorSettings>; error?: string; code?: string };
+      if (!res.ok || !body.sessionToken || !body.endpoint) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { code: body.code || 'unavailable' });
+      this.cloud = { endpoint: body.endpoint, sessionToken: body.sessionToken };
+      this.sessionId = body.sessionId ?? null;
+      if (body.settings) {
+        this.set = resolveSettings({ ...body.settings, ...(this.config.settings || {}) }, this.config.snapshots ? this.config.snapshots.intervalSec : undefined);
+        if (this.config.snapshots !== false) this.intervalSec = this.set.snapshotIntervalSec;
+      }
+      this.consent = { organisation: body.organisation, retentionDays: body.retentionDays, ...(this.config.consent || {}) };
+      this.emit('cloud_connected', 'info', { sessionId: this.sessionId });
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      console.warn(`[ProctorKit] Running without the ProctorKit service: ${err.message}`);
+      this.emit('cloud_unavailable', 'warn', { code: err.code || 'network', message: err.message });
+    }
+  }
 
   /** Listen for one event type, or `'*'` for all. Returns a function that removes the listener. */
   on(type: ProctorEventType | '*', listener: Listener): () => void {
@@ -124,6 +159,7 @@ export class Proctor {
    */
   async runChecks(): Promise<CheckResult> {
     const headless = this.config.ui === 'headless';
+    if (this.config.key && !this.cloud) await this.connect();
     const sup = this.support();
     if (!sup.ok) {
       this.emit('unsupported', 'high', { missing: sup.missing });
@@ -228,7 +264,7 @@ export class Proctor {
   giveConsent(): void {
     if (this.consented) return;
     this.consented = true;
-    this.emit('consent_given', 'info', { retentionDays: this.config.consent?.retentionDays ?? 90 });
+    this.emit('consent_given', 'info', { retentionDays: this.consent.retentionDays ?? 90 });
   }
 
   /** True when every required stream is live and consent was given. */
@@ -264,7 +300,7 @@ export class Proctor {
       this.schedule();
     }
     if (this.faces) this.faceTimer = setInterval(() => void this.faceCheck(), this.set.faceCheckIntervalSec * 1000);
-    if (this.config.cloud) this.flushTimer = setInterval(() => void this.flushEvents(), 5000);
+    if (this.cloud) this.flushTimer = setInterval(() => void this.flushEvents(), 5000);
 
     if (this.need.fullscreen && !document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => this.pause('fullscreen'));
@@ -361,7 +397,7 @@ export class Proctor {
   }
 
   private consentFacts(): [string, string][] {
-    const c = this.config.consent || {};
+    const c = this.consent;
     const org = c.organisation || this.s.organisationFallback;
     const fill = (t: string) => t.replace('{organisation}', org).replace('{interval}', String(this.intervalSec)).replace('{days}', String(c.retentionDays ?? 90));
     const what = this.intervalSec && (this.need.camera || this.need.screenShare) ? this.s.consentWhat : this.s.consentWhatNoSnapshots;
@@ -373,7 +409,7 @@ export class Proctor {
     const event: ProctorEvent = { type, at: new Date(now).toISOString(), ms: this.running && this.startedAt ? now - this.startedAt : 0, severity, context: { ...this.context } };
     if (data) event.data = data;
     this.events.push(event);
-    if (this.config.cloud) { this.outbox.push(event); if (this.outbox.length > 500) this.outbox.shift(); }
+    if (this.cloud) { this.outbox.push(event); if (this.outbox.length > 500) this.outbox.shift(); }
     try { this.config.onEvent?.(event); } catch (e) { console.error('[proctorkit] onEvent threw', e); }
     for (const key of [type, '*']) for (const fn of this.listeners.get(key) || []) { try { fn(event); } catch (e) { console.error('[proctorkit] listener threw', e); } }
     return event;
@@ -563,7 +599,7 @@ export class Proctor {
       const ev = this.emit('snapshot', 'info', { kind, reason, bytes: Math.round(dataUrl.length * 0.75) });
       const shot: Snapshot = { kind, dataUrl, reason, at: ev.at, ms: ev.ms, context: ev.context };
       try { this.config.onSnapshot?.(shot); } catch (e) { console.error('[proctorkit] onSnapshot threw', e); }
-      if (this.config.cloud) this.queueUpload(shot);
+      if (this.cloud) this.queueUpload(shot);
     }
   }
 
@@ -576,7 +612,7 @@ export class Proctor {
   }
 
   private pump(): void {
-    const cloud = this.config.cloud;
+    const cloud = this.cloud;
     while (cloud && this.uploading < 2 && this.uploads.length) {
       const shot = this.uploads.shift()!;
       this.uploading++;
@@ -587,7 +623,7 @@ export class Proctor {
   }
 
   private async flushEvents(final = false): Promise<void> {
-    const cloud = this.config.cloud;
+    const cloud = this.cloud;
     if (!cloud || !this.outbox.length) return;
     const batch = this.outbox.splice(0, 200);
     const ok = await this.post(`${cloud.endpoint.replace(/\/$/, '')}/events`, { token: cloud.sessionToken, events: batch }, final ? 1 : 2, final);

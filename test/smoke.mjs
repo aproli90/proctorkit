@@ -69,6 +69,34 @@ const browser = await chromium.launch({
   await page.close();
 }
 
+// ---- 1b. page key: the page opens its own session; a refused key fails open
+{
+  const context = await browser.newContext({ permissions: ['camera'] });
+  const page = await context.newPage();
+  await page.addInitScript(mocks);
+  let asked = null;
+  await page.route('**/api/page/session', async (route) => {
+    asked = route.request().postDataJSON();
+    if (asked.key === 'pk_pub_bad') return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Add localhost to the key\'s domains in your dashboard.', code: 'domain_not_allowed' }) });
+    return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ sessionId: 's_1', sessionToken: 'pks_x', endpoint: '/pk2', organisation: 'Acme Hiring', retentionDays: 30, settings: { snapshotIntervalSec: 15 } }) });
+  });
+  await page.goto(`${base}/test/page.html`);
+  const ok = await page.evaluate(async () => {
+    const evs = []; const p = ProctorKit.createProctor({ key: 'pk_pub_good', apiBase: '/api', faceDetection: false, ui: 'headless', context: { candidateId: 'c_9' }, onEvent: (e) => evs.push(e) });
+    await p.runChecks(); return { types: evs.map((e) => e.type), sessionId: p.sessionId };
+  });
+  check('page key: session opened before the checks', ok.types[0] === 'cloud_connected' && ok.sessionId === 's_1', ok.types.join(','));
+  check('page key: candidate id sent as the external id', asked?.externalId === 'c_9');
+  const warns = []; page.on('console', (m) => { if (m.type() === 'warning') warns.push(m.text()); });
+  const bad = await page.evaluate(async () => {
+    const evs = []; const p = ProctorKit.createProctor({ key: 'pk_pub_bad', apiBase: '/api', faceDetection: false, ui: 'headless', onEvent: (e) => evs.push(e) });
+    const r = await p.runChecks(); return { first: evs[0], checksRan: evs.length > 1 || r.ok !== undefined };
+  });
+  check('refused key: fails open with the reason', bad.first?.type === 'cloud_unavailable' && bad.first.data.code === 'domain_not_allowed' && bad.checksRan);
+  check('refused key: developer sees the fix in the console', warns.some((w) => w.includes('Add localhost')));
+  await context.close();
+}
+
 // ---- 2. full flow with the default UI and a mocked backend
 {
   const context = await browser.newContext({ permissions: ['camera'] });
