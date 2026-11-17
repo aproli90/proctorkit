@@ -20,31 +20,39 @@ or with a script tag (global `ProctorKit`):
 
 ## Quick start
 
-```js
+React, with a page key from the ProctorKit dashboard (free for the first 50 candidates; results in the dashboard):
+
+```jsx
+import { useEffect, useState } from 'react';
 import { createProctor } from 'proctorkit';
 
+const proctor = createProctor({ key: 'pk_pub_...' });   // once, outside the component
+
+export function Quiz({ candidateId, questions }) {
+  const [started, setStarted] = useState(false);
+  const [i, setI] = useState(0);
+
+  const begin = async () => {                           // the Start button
+    proctor.setContext({ candidateId });
+    if ((await proctor.runChecks()).ok && proctor.start()) setStarted(true);
+  };
+
+  useEffect(() => { if (started) proctor.setContext({ questionId: questions[i].id }); }, [started, i]);
+
+  const submit = () => { proctor.stop(); /* then save answers as before */ };
+  // ...render the quiz once started
+}
+```
+
+Without an account, everything stays with you: leave out `key` and take the events and frames yourself.
+
+```js
 const proctor = createProctor({
   consent: { organisation: 'Acme Hiring', retentionDays: 90 },
-  context: { candidateId: 'c_123', testId: 'sales-screening' },
-  onEvent: (event) => console.log(event.type, event),
-  onSnapshot: (snapshot) => { /* store snapshot.dataUrl yourself */ },
+  onEvent: (event) => sendToYourServer(event),
+  onSnapshot: (snapshot) => uploadToYourStorage(snapshot.dataUrl),
 });
-
-startButton.onclick = async () => {
-  const result = await proctor.runChecks();   // system check + consent
-  if (!result.ok) return;                     // result.reason says why
-  proctor.setContext({ questionId: 'Q01' });
-  proctor.start();                            // when the first question appears
-};
-
-// whenever the question changes
-proctor.setContext({ questionId: 'Q02' });
-
-// freeze your own timers while a check or pause overlay is up
-if (proctor.isBlocked()) { /* do not count this time */ }
-
-// at the end
-const report = proctor.stop();
+// runChecks(), start(), setContext() and stop() work the same way
 ```
 
 A complete page is in [`examples/basic.html`](examples/basic.html).
@@ -101,7 +109,8 @@ createProctor({
   strings: { pausedTitle: 'Test paused' },   // replace any text; see defaultStrings
   context: {},
   onEvent, onSnapshot,
-  cloud: { endpoint, sessionToken },   // optional backend, see below
+  key: 'pk_pub_...',                   // optional: a page key from the ProctorKit dashboard
+  cloud: { endpoint, sessionToken },   // optional: a session your server created with a server key
 });
 ```
 
