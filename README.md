@@ -56,7 +56,7 @@ The SDK gives you the signals; what you do with them is up to you. [ProctorKit C
 | Dashboard for your team, keys locked to your domains | | Yes |
 | AI review of every photo and screenshot: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
 | Review priority from 0 to 100, so the riskiest sessions come first | | With Record + AI review |
-| Price | Free, forever | Record: free during launch. Record + AI review: ₹15 per candidate session\*, first 50 free |
+| Price | Free, forever | Record: free during launch. Record + AI review: $0.25 per candidate session\* (₹15 in India), first 50 free |
 
 ```js
 const proctor = createProctor({ key: 'pk_pub_...' });   // the same proctor, now reporting to your dashboard
@@ -64,7 +64,7 @@ const proctor = createProctor({ key: 'pk_pub_...' });   // the same proctor, now
 
 [Create a key](https://proctorkit.com/app/?new), [try the demo](https://proctorkit.com/demo/) (try to cheat; you get the report), or read the [docs](https://proctorkit.com/docs/) for the REST API.
 
-\* One candidate session is one person taking one test of up to 30 minutes. Longer tests count by the minute: 45 minutes is 1.5 sessions. Tests that never start are not counted. Prices in Indian rupees.
+\* One candidate session is one person taking one test of up to 30 minutes. Longer tests count by the minute: 45 minutes is 1.5 sessions. Tests that never start are not counted. Customers in India pay in rupees.
 
 ## Install
 
@@ -327,8 +327,8 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 [ProctorKit Cloud](https://proctorkit.com) stores the frames and gives you a dashboard and a private report link per candidate, laid out by question. Each key runs in one of two modes:
 
-- **Record**: photos, screenshots and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then ₹5 per session.
-- **Record + AI review**: AI checks every photo and screenshot (a phone in use, another person close by, another app on screen) and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. ₹15 per candidate session at launch price (list ₹25), first 50 free.
+- **Record**: photos, screenshots and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then $0.10 per session (₹5 in India).
+- **Record + AI review**: AI checks every photo and screenshot (a phone in use, another person close by, another app on screen) and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
 
 A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
 
