@@ -255,7 +255,7 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 - **Record**: photos, screenshots and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then ₹5 per session.
 - **Record + AI review**: AI checks every photo and screenshot (a phone in use, another person close by, another app on screen) and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. ₹15 per candidate session at launch price (list ₹25), first 50 free.
 
-A candidate session is one person taking one test of up to 30 minutes; longer tests count in proportion (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
+A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
 
 1. Your server creates a session with your API key: `POST /v1/sessions` with `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
 2. Pass `endpoint`, `sessionToken` and `settings` to the page:
