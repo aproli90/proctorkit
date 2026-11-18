@@ -1,7 +1,7 @@
 {
   "name": "proctorkit",
   "version": "0.1.0",
-  "description": "Proctoring for the quiz you already built: a browser SDK for system checks, consent, full-screen and entire-screen-share guards, camera and face-in-view checks, snapshots and a per-question event log. Optional hosted checks and report links.",
+  "description": "Proctoring for the quiz you already built: a free browser SDK for system checks, consent, full-screen and entire-screen-share guards, camera and face-in-view checks, snapshots and a per-question event log. Optional ProctorKit Cloud for reports and AI review.",
   "keywords": [
     "proctoring",
     "proctor",
@@ -19,7 +19,7 @@
     "remote-exam"
   ],
   "license": "MIT",
-  "author": "Ashhar",
+  "author": "Ashhar Akhlaque",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aproli90/proctorkit.git"
@@ -53,7 +53,7 @@
     "playwright": "^1.50.0",
     "typescript": "^5.6.0"
   },
-  "homepage": "https://github.com/aproli90/proctorkit#readme",
+  "homepage": "https://proctorkit.com",
   "bugs": {
     "url": "https://github.com/aproli90/proctorkit/issues"
   }

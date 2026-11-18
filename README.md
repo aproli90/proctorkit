@@ -6,6 +6,22 @@ ProctorKit runs a system check, gets the candidate's consent, keeps the test in 
 
 > Status: 0.1, pre-release. The API may change before 1.0.
 
+## Free SDK or ProctorKit Cloud
+
+This library is free and MIT licensed. On its own it runs in the candidate's browser and hands you the events and frames; storing them and looking through them is up to you. [ProctorKit Cloud](https://proctorkit.com) is the optional paid service built on it.
+
+| | This SDK on its own | ProctorKit Cloud |
+|---|---|---|
+| System check, consent, full screen, entire-screen share, camera | Yes | Yes |
+| Event log tied to each question, on-device face check | Yes | Yes |
+| Where frames and events go | Your own handlers and storage | Stored for you |
+| Report per candidate, dashboard, reviewers | Build your own | Included |
+| AI review of every photo and screenshot, review priority | No | With Record + AI review |
+| Setup | Your code | A page key in one line, or a server key |
+| Price | Free | Record: free during launch. Record + AI review: ₹15 per candidate session, first 50 free. [Pricing](https://proctorkit.com/#pricing) |
+
+To move to the Cloud later, [create a key](https://proctorkit.com/app/?new) and pass it as `key`; nothing else in your quiz changes. Try it first on the [demo](https://proctorkit.com/demo/), and see the [docs](https://proctorkit.com/docs/).
+
 ## Install
 
 ```bash
@@ -20,7 +36,7 @@ or with a script tag (global `ProctorKit`):
 
 ## Quick start
 
-React, with a page key from the ProctorKit dashboard (free for the first 50 candidates; results in the dashboard):
+React, with a page key from the [ProctorKit dashboard](https://proctorkit.com/app/?new) (results and reports in the dashboard):
 
 ```jsx
 import { useEffect, useState } from 'react';
@@ -44,7 +60,7 @@ export function Quiz({ candidateId, questions }) {
 }
 ```
 
-Without an account, everything stays with you: leave out `key` and take the events and frames yourself.
+Without an account (free, nothing leaves the page except through your handlers): leave out `key` and take the events and frames yourself.
 
 ```js
 const proctor = createProctor({
@@ -241,9 +257,14 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 `sessionToken` must be a short-lived token your server issues for one session. Never put an API key in the page. Failed uploads are retried and then dropped with a `snapshot_upload_failed` event; a backend outage never stops the test.
 
-### ProctorKit checks (hosted, optional)
+### ProctorKit Cloud (hosted, optional)
 
-ProctorKit also runs a hosted backend you can point `cloud` at. It stores the frames, runs automated checks on each one (another person near the candidate, a phone in use, another app on screen, the test window hidden), gives each session a 0 to 100 review priority (which candidates to look at first, not a test result), and gives you a private report link per candidate, laid out by question. The first 50 candidates are free, then ₹15 per candidate at launch price (list ₹25); a candidate is one test of up to 30 minutes, and longer tests are charged in proportion.
+[ProctorKit Cloud](https://proctorkit.com) stores the frames and gives you a dashboard and a private report link per candidate, laid out by question. Each key runs in one of two modes:
+
+- **Record**: photos, screenshots and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then ₹5 per session.
+- **Record + AI review**: AI checks every photo and screenshot (a phone in use, another person close by, another app on screen) and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. ₹15 per candidate session at launch price (list ₹25), first 50 free.
+
+A candidate session is one person taking one test of up to 30 minutes; longer tests count in proportion (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
 
 1. Your server creates a session with your API key: `POST /v1/sessions` with `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
 2. Pass `endpoint`, `sessionToken` and `settings` to the page:
@@ -258,7 +279,7 @@ const proctor = createProctor({
 
 3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET /v1/sessions/{sessionId}`.
 
-Full steps, examples and a prompt for coding agents are in the docs on the ProctorKit site, which also has a demo you can try to cheat.
+Full steps, examples and a prompt for coding agents are in the [docs](https://proctorkit.com/docs/). There is also a [demo you can try to cheat](https://proctorkit.com/demo/).
 
 ## Privacy
 
