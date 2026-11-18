@@ -1,12 +1,14 @@
-# Publishes to npm when a version tag (v0.1.0, v0.2.0, ...) is pushed.
-# Needs the repository secret NPM_TOKEN (an npm granular access token with publish rights for "proctorkit").
+# Publishes to npm when a version tag (v0.1.1, v0.2.0, ...) is pushed.
+# Uses npm trusted publishing: npm trusts this workflow in this repo, so no token or secret is stored anywhere.
+# Set up once on npmjs.com: package proctorkit > Settings > Trusted publisher > GitHub Actions,
+# owner aproli90, repository proctorkit, workflow publish.yml.
 name: Publish to npm
 on:
   push:
     tags: ['v*']
 permissions:
   contents: read
-  id-token: write   # npm provenance: the package page shows it was built from this repo
+  id-token: write   # lets npm verify this run came from this workflow; also adds provenance to the package page
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -14,13 +16,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24          # ships an npm new enough for trusted publishing
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - name: Tag matches package.json
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public
