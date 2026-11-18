@@ -5,6 +5,8 @@
 export interface ProctorSettings {
   /** Seconds between regular frames. */
   snapshotIntervalSec: number;
+  /** Frames are checked automatically by a backend. Only changes the consent wording; a backend sets it. */
+  automatedChecks: boolean;
   /** Each frame is taken up to this many seconds early or late, so the moment cannot be predicted. */
   snapshotJitterSec: number;
   /** Show the camera preview during the system check only, not during the test. */
@@ -33,6 +35,7 @@ export interface ProctorSettings {
 
 export const defaultSettings: ProctorSettings = {
   snapshotIntervalSec: 10,
+  automatedChecks: false,
   snapshotJitterSec: 3,
   hideCameraAfterSetup: true,
   absencePromptSec: 10,

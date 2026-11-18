@@ -401,7 +401,7 @@ export class Proctor {
     const org = c.organisation || this.s.organisationFallback;
     const fill = (t: string) => t.replace('{organisation}', org).replace('{interval}', String(this.intervalSec)).replace('{days}', String(c.retentionDays ?? 90));
     const what = this.intervalSec && (this.need.camera || this.need.screenShare) ? this.s.consentWhat : this.s.consentWhatNoSnapshots;
-    return [[this.s.labelWhat, fill(what)], [this.s.labelWhy, fill(this.s.consentWhy)], [this.s.labelKept, fill(this.s.consentKept)], [this.s.labelSeenBy, c.seenBy || fill(this.s.consentSeenBy)]];
+    return [[this.s.labelWhat, fill(what)], [this.s.labelWhy, fill(this.set.automatedChecks ? this.s.consentWhyChecks : this.s.consentWhy)], [this.s.labelKept, fill(this.s.consentKept)], [this.s.labelSeenBy, c.seenBy || fill(this.s.consentSeenBy)]];
   }
 
   private emit(type: ProctorEventType, severity: Severity, data?: Record<string, unknown>): ProctorEvent {
