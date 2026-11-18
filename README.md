@@ -15,10 +15,7 @@ proctor.setContext({ questionId: 'Q1' });              // whenever the question 
 proctor.stop();                                        // on submit: returns the session report
 ```
 
-<p>
-  <img src="https://proctorkit.com/assets/candidate-consent.webp" alt="The system check and consent screen ProctorKit shows before a test" width="49%">
-  <img src="https://proctorkit.com/assets/candidate-pause.webp" alt="The test paused after the candidate left full screen, with one button to return" width="49%">
-</p>
+<p align="center"><img src="https://proctorkit.com/assets/proctorkit-demo.gif" alt="A candidate goes through the system check and consent, the test pauses when they leave full screen, and the reviewer's report shows each flagged moment next to its question" width="100%"></p>
 
 > Status: 0.1, pre-release. The API may change before 1.0.
 
