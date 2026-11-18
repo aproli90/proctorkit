@@ -1,6 +1,6 @@
 // On-device face counting. The model runs in the candidate's browser; no frame leaves the page for it.
 // The MediaPipe runtime and model are loaded only when a test starts, from the URLs below or the host's own.
-import type { FaceDetectionOptions } from './types';
+import type { FaceDetectionOptions } from './types.js';
 
 const VERSION = '1.2.3';
 export const faceDefaults = {

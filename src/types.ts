@@ -77,7 +77,7 @@ export interface ProctorConfig {
     intervalSec?: number;
   };
   /** Timings and thresholds. Anything left out keeps its default; see `defaultSettings`. */
-  settings?: Partial<import('./settings').ProctorSettings>;
+  settings?: Partial<import('./settings.js').ProctorSettings>;
   /**
    * Find the candidate's face on their own device. While it is on, the test cannot start until the
    * detector has loaded and a face is in view; during the test it prompts the candidate back into view

@@ -1,19 +1,19 @@
-import { ProctorUI, defaultStrings, type StepSpec } from './ui';
-import type { CheckResult, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types';
-import { resolveSettings, type ProctorSettings } from './settings';
-import { loadFaceCounter, type FaceCounter } from './face';
+import { ProctorUI, defaultStrings, type StepSpec } from './ui.js';
+import type { CheckResult, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types.js';
+import { resolveSettings, type ProctorSettings } from './settings.js';
+import { loadFaceCounter, type FaceCounter } from './face.js';
 
-export type { CheckResult, ConsentInfo, FaceDetectionOptions, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types';
-export { defaultSettings, type ProctorSettings } from './settings';
-export { loadFaceCounter, faceDefaults, type FaceCounter } from './face';
-export { defaultStrings } from './ui';
+export type { CheckResult, ConsentInfo, FaceDetectionOptions, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types.js';
+export { defaultSettings, type ProctorSettings } from './settings.js';
+export { loadFaceCounter, faceDefaults, type FaceCounter } from './face.js';
+export { defaultStrings } from './ui.js';
 
 type PauseReason = 'fullscreen' | 'screen' | 'camera' | 'display';
 type Outcome = { ok: true } | { ok: false; error: string; fix: string };
 type Listener = (event: ProctorEvent) => void;
 
 /** The ProctorKit service. Override with `apiBase` to use your own backend. */
-const DEFAULT_API = 'https://bidwwbqamgnhjmrpvjtg.supabase.co/functions/v1/pk-api';
+const DEFAULT_API = 'https://proctorkit.com/api';
 
 const PAUSE_ORDER: PauseReason[] = ['display', 'camera', 'screen', 'fullscreen'];
 const CLIPBOARD = ['copy', 'cut', 'paste', 'contextmenu'] as const;

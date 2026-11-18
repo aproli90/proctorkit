@@ -1,6 +1,6 @@
 # ProctorKit
 
-Proctoring you can add to any web quiz. One small browser library, no dependencies, no backend required.
+Proctoring you can add to any web quiz. One small browser library, written in TypeScript with its type declarations included, no dependencies, no backend required.
 
 ProctorKit runs a system check, gets the candidate's consent, keeps the test in full screen, makes sure the entire screen is shared, takes webcam and screen frames, and gives you a timestamped event log tied to the question on screen. It pauses the test when a requirement breaks and lets the candidate fix it. It flags; a person decides.
 
@@ -124,6 +124,7 @@ createProctor({
   onEvent, onSnapshot,
   key: 'pk_pub_...',                   // optional: a page key from the ProctorKit dashboard
   cloud: { endpoint, sessionToken },   // optional: a session your server created with a server key
+  apiBase: undefined,                  // where ProctorKit Cloud lives; leave unset
 });
 ```
 
@@ -185,7 +186,23 @@ Call `setContext({ questionId })` whenever the question changes. The per-questio
 | `retry(reason)` | `Promise<boolean>` | Tries to fix one pause reason (for headless hosts) |
 | `getReport()` | `ProctorReport` | The report so far, without stopping |
 | `support()` | `{ ok, missing }` | Missing browser features, without prompting |
-| `requestCamera()`, `requestScreenShare()`, `giveConsent()` | | The individual steps, for headless hosts |
+| `ready()` | `boolean` | True when every requirement is met and `start()` would succeed |
+| `requestCamera()`, `prepareFaceDetection()`, `requestScreenShare()`, `giveConsent()` | | The individual steps, for headless hosts |
+| `sessionId` | `string \| null` | The ProctorKit Cloud session's ID once a page key has connected |
+
+## TypeScript
+
+The package ships its declarations; nothing extra to install. Exported types:
+
+```ts
+import { createProctor, Proctor, defaultSettings, defaultStrings } from 'proctorkit';
+import type {
+  ProctorConfig, ProctorEvent, ProctorEventType, Severity, ProctorContext, ProctorSettings,
+  Snapshot, CheckResult, ProctorReport, ConsentInfo, FaceDetectionOptions,
+} from 'proctorkit';
+```
+
+`ProctorEvent` is `{ type, at, ms, severity, context, data? }`; `Snapshot` is `{ kind: 'webcam' | 'screen', dataUrl, reason: 'interval' | 'event', at, ms, context }`; `CheckResult` is `{ ok, reason?, missing? }`; `ProctorReport` is `{ startedAt, endedAt, durationMs, pausedMs, awayMs, context, counts, events }`. Hover them in your editor for every field.
 
 ## Pauses and your timer
 
@@ -217,6 +234,8 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `check_passed`, `check_failed` | info | `check` (`camera`, `face_detection`, `face_visible`, `screen_share`), `error` or `surface` |
 | `consent_given` | info | `retentionDays` |
 | `started`, `stopped` | info | |
+| `cloud_connected` | info | `sessionId` (page key only) |
+| `cloud_unavailable` | warn | `code` and `message`: the page key was refused (`key_invalid`, `key_off`, `domain_not_allowed`, `free_used`, `daily_cap`) or the service could not be reached. The test carries on with the on-device checks |
 | `context_changed` | info | the values that changed |
 | `paused`, `resumed` | info | `reason`, `pausedMs` |
 | `fullscreen_exit` | warn | |
@@ -257,7 +276,7 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
 
-1. Your server creates a session with your API key: `POST /v1/sessions` with `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
+1. Your server creates a session with your server key: `POST https://proctorkit.com/api/v1/sessions` with `Authorization: Bearer pk_live_...` and `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
 2. Pass `endpoint`, `sessionToken` and `settings` to the page:
 
 ```js
@@ -268,9 +287,9 @@ const proctor = createProctor({
 });
 ```
 
-3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET /v1/sessions/{sessionId}`.
+3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`.
 
-Full steps, examples and a prompt for coding agents are in the [docs](https://proctorkit.com/docs/). There is also a [demo you can try to cheat](https://proctorkit.com/demo/).
+Every request and response, the flag types, limits and a prompt for coding agents are in the [docs](https://proctorkit.com/docs/). There is also a [demo you can try to cheat](https://proctorkit.com/demo/).
 
 ## Privacy
 
