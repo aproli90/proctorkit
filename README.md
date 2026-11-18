@@ -1,26 +1,70 @@
 # ProctorKit
 
-Proctoring you can add to any web quiz. One small browser library, written in TypeScript with its type declarations included, no dependencies, no backend required.
+**Proctoring for the quiz you already built.**
 
-ProctorKit runs a system check, gets the candidate's consent, keeps the test in full screen, makes sure the entire screen is shared, takes webcam and screen frames, and gives you a timestamped event log tied to the question on screen. It pauses the test when a requirement breaks and lets the candidate fix it. It flags; a person decides.
+[![npm](https://img.shields.io/npm/v/proctorkit)](https://www.npmjs.com/package/proctorkit) [![types](https://img.shields.io/npm/types/proctorkit)](#typescript) [![size](https://img.shields.io/bundlephobia/minzip/proctorkit)](https://bundlephobia.com/package/proctorkit) [![licence](https://img.shields.io/npm/l/proctorkit)](LICENSE)
+
+One small browser library turns any web test into a proctored one: a system check, consent, full screen, entire-screen sharing, camera and face checks, regular photos and screenshots, and an event log tied to each question. It pauses the test when something breaks and helps the candidate fix it. Free, MIT licensed, written in TypeScript, no dependencies, about 11 kB gzipped.
+
+```js
+import { createProctor } from 'proctorkit';
+
+const proctor = createProctor({ onEvent: console.log, onSnapshot: saveFrame });
+if ((await proctor.runChecks()).ok) proctor.start();   // on the Start button
+proctor.setContext({ questionId: 'Q1' });              // whenever the question changes
+proctor.stop();                                        // on submit: returns the session report
+```
+
+<p>
+  <img src="https://proctorkit.com/assets/candidate-consent.webp" alt="The system check and consent screen ProctorKit shows before a test" width="49%">
+  <img src="https://proctorkit.com/assets/candidate-pause.webp" alt="The test paused after the candidate left full screen, with one button to return" width="49%">
+</p>
 
 > Status: 0.1, pre-release. The API may change before 1.0.
 
+## Why teams use it
+
+- **Keep your test.** It works on any web page you control: React, Vue, Svelte, Angular, a plain HTML form or a tool you built. Your questions, answers and scoring never pass through ProctorKit.
+- **A ready interface, or none.** The built-in screens handle the system check, consent and pauses, with light and dark themes and every word replaceable. Or go headless and drive your own screens from events.
+- **Fair to candidates.** Plain consent before anything is recorded, a pause screen with one button to fix each problem, and a timer that stops while the test is paused.
+- **Evidence by question.** Every event, photo and screenshot carries the question on screen at that moment, so a reviewer sees what happened and where.
+- **Hard to get wrong.** It checks browser support up front, never hangs, and keeps the test running if an upload fails.
+- **Private by default.** Nothing is captured before `runChecks()`, and nothing leaves the page except through your own handlers.
+
+## Everything in the free SDK
+
+| Before the test | During the test | After the test |
+| --- | --- | --- |
+| Browser support check, with what is missing | Pauses on leaving full screen, stopping the share, losing the camera or adding a display, and resumes when fixed | A session report: duration, paused time, time away, counts per event type |
+| Camera, with a preview for framing | Time away from the test window, per question | The full event log, each event with its question |
+| Face in view, checked on the candidate's device | Prompts the candidate back into view | Every photo and screenshot, tagged with its question |
+| Entire-screen share required, window and tab shares refused | Copy, cut, paste and right-click blocked and logged | |
+| Single display required (Chromium) | Webcam photo and screenshot about every 10 seconds, plus extra ones when something happens | |
+| Consent: what is recorded, why, for how long, who sees it | Pointer leaving the page | |
+
+Plus, for developers: TypeScript types, ES module and script-tag builds, a headless mode, themes, replaceable text, every timing in one settings object, and `activeMs()` for a countdown that never counts a pause.
+
 ## Free SDK or ProctorKit Cloud
 
-This library is free and MIT licensed. On its own it runs in the candidate's browser and hands you the events and frames; storing them and looking through them is up to you. [ProctorKit Cloud](https://proctorkit.com) is the optional paid service built on it.
+The SDK gives you the signals; what you do with them is up to you. [ProctorKit Cloud](https://proctorkit.com) is the optional hosted service for teams that would rather not build storage, review screens and checks themselves. Switching is one line: pass a key.
 
-| | This SDK on its own | ProctorKit Cloud |
-|---|---|---|
-| System check, consent, full screen, entire-screen share, camera | Yes | Yes |
-| Event log tied to each question, on-device face check | Yes | Yes |
-| Where frames and events go | Your own handlers and storage | Stored for you |
-| Report per candidate, dashboard, reviewers | Build your own | Included |
-| AI review of every photo and screenshot, review priority | No | With Record + AI review |
-| Setup | Your code | A page key in one line, or a server key |
-| Price | Free | Record: free during launch. Record + AI review: ₹15 per candidate session, first 50 free. [Pricing](https://proctorkit.com/#pricing) |
+| | Free SDK | ProctorKit Cloud |
+| --- | --- | --- |
+| Everything in the table above | Yes | Yes |
+| Where photos, screenshots and events go | Your handlers and your storage | Stored for you, deleted on schedule |
+| A report per candidate, laid out by question | Build your own | Yes, with a private link for each reviewer |
+| Dashboard for your team, keys locked to your domains | | Yes |
+| AI review of every photo and screenshot: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
+| Review priority from 0 to 100, so the riskiest sessions come first | | With Record + AI review |
+| Price | Free, forever | Record: free during launch. Record + AI review: ₹15 per candidate session\*, first 50 free |
 
-To move to the Cloud later, [create a key](https://proctorkit.com/app/?new) and pass it as `key`; nothing else in your quiz changes. Try it first on the [demo](https://proctorkit.com/demo/), and see the [docs](https://proctorkit.com/docs/).
+```js
+const proctor = createProctor({ key: 'pk_pub_...' });   // the same proctor, now reporting to your dashboard
+```
+
+[Create a key](https://proctorkit.com/app/?new), [try the demo](https://proctorkit.com/demo/) (try to cheat; you get the report), or read the [docs](https://proctorkit.com/docs/) for the REST API.
+
+\* One candidate session is one person taking one test of up to 30 minutes. Longer tests count by the minute: 45 minutes is 1.5 sessions. Tests that never start are not counted. Prices in Indian rupees.
 
 ## Install
 
@@ -71,9 +115,21 @@ const proctor = createProctor({
 // runChecks(), start(), setContext() and stop() work the same way
 ```
 
+Plain HTML, no build step:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/proctorkit/dist/proctorkit.global.js"></script>
+<script>
+  const proctor = ProctorKit.createProctor({ key: 'pk_pub_...' });
+  document.querySelector('#start').onclick = async () => {
+    if ((await proctor.runChecks()).ok && proctor.start()) showFirstQuestion();
+  };
+</script>
+```
+
 A complete page is in [`examples/basic.html`](examples/basic.html).
 
-## What it does
+## Feature details
 
 | Capability | Default | Notes |
 | --- | --- | --- |
