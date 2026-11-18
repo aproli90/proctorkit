@@ -392,7 +392,7 @@ export class Proctor {
   // ------------------------------------------------------------------ internals
 
   private view(): ProctorUI {
-    if (!this.ui) this.ui = new ProctorUI(this.s, this.config.theme || 'auto', this.config.badge !== false);
+    if (!this.ui) this.ui = new ProctorUI(this.s, this.config.theme || 'auto');
     return this.ui;
   }
 

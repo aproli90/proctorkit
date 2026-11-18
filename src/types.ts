@@ -95,8 +95,6 @@ export interface ProctorConfig {
    * themselves, and hidden during the test. `true` keeps it during the test; `false` never shows it.
    */
   cameraTile?: boolean;
-  /** Show "Proctored by ProctorKit" on the system check. Default `true`. */
-  badge?: boolean;
   /** Replace any interface text. Keys are listed in `defaultStrings`. */
   strings?: Partial<Record<string, string>>;
   /** Initial context, for example `{ candidateId: 'c_123', testId: 'physio-screening' }`. */

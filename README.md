@@ -85,9 +85,8 @@ A complete page is in [`examples/basic.html`](examples/basic.html).
 | Consent notice | on | States what is recorded, why, for how long, and who sees it |
 | Copy, cut, paste, context menu blocked | on | Each attempt is logged |
 | Time away from the test window | on | `focus_lost` and `focus_returned` with `awayMs` |
-| Per-question behaviour | on | Time since the question appeared on each focus loss; moving on right after a long focus loss; the pointer leaving the page |
+| Per-question behaviour | on | Time since the question appeared on each focus loss; the pointer leaving the page |
 | Face in view, checked on the candidate's device | on | The test cannot start until the detector has loaded and a face is in view. During the test it asks the candidate to move back into view and reports `no_face`. It never reports other people. No frame leaves the page for it |
-| Software camera and frozen feed | on | `virtual_camera` by the camera's name; `camera_frozen` when frames stop changing |
 | Camera preview | setup only | Shown while the candidate sets up, hidden during the test |
 | Webcam and screen frames | about every 10 s | JPEG data URLs; the exact moment varies by a few seconds; extra frames when something happens |
 | Question tagging | `setContext()` | Every event and frame carries the context at that moment |
@@ -104,7 +103,6 @@ Browser proctoring deters casual cheating and produces evidence for a reviewer. 
 - It records no sound, so it cannot hear someone dictating answers.
 - It does not check who the candidate is.
 - A mirrored second monitor or an HDMI splitter looks like one screen to a browser.
-- A software camera with a renamed driver is not recognised.
 - Everything runs on a page the candidate controls. Treat a clean log as "nothing was observed", not as proof.
 - Phones and tablets cannot share their screen from the browser, so the default setup needs a desktop browser. Chrome and Edge give the fullest checks.
 
@@ -121,7 +119,6 @@ createProctor({
   cameraTile: undefined,               // preview during setup only; true keeps it during the test, false never shows it
   faceDetection: {},                   // or false; see below
   settings: {},                        // timings and thresholds; see below
-  badge: true,
   strings: { pausedTitle: 'Test paused' },   // replace any text; see defaultStrings
   context: {},
   onEvent, onSnapshot,
@@ -149,12 +146,9 @@ Every timing and threshold is in one object, `defaultSettings`. Pass only what y
 | `absencePromptSec` | 10 | No face for this long: ask the candidate to move back into view |
 | `faceCheckIntervalSec` | 2 | Seconds between face checks |
 | `multipleFacesChecks` | 2 | Consecutive checks with two or more faces before an extra frame is taken |
-| `frozenFeedFrames` | 3 | Identical consecutive webcam frames before `camera_frozen` |
 | `minFocusLossMs` | 800 | Shorter focus losses are ignored |
 | `longFocusLossSec` | 5 | A longer focus loss is `warn`, a shorter one `info` |
-| `fastAnswerSec` | 8 | Changing `questionId` this soon after a long focus loss is reported |
 | `pointerAwayMinMs` | 1500 | The pointer must be off the page this long to be reported |
-| `virtualCameraNames` | see source | Lower-case fragments of software camera names |
 
 With a ProctorKit backend, pass the `settings` object from the create-session response as it is.
 
@@ -228,15 +222,12 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `fullscreen_exit` | warn | |
 | `screen_share_stopped`, `camera_lost` | high | |
 | `screen_share_resumed`, `camera_restored` | info | |
-| `virtual_camera` | high | `label`: the camera's name matched a software camera |
-| `camera_frozen` | high | `frames`: identical webcam frames in a row |
 | `no_face` | warn | `seconds` with no face; the candidate is prompted |
 | `face_returned` | info | `awayMs` |
 | `screen_surface_unverified` | warn | the browser did not report what was shared |
 | `extra_display` | warn before the test, high during | `phase` |
 | `focus_lost` | warn | `sinceQuestionMs` |
 | `focus_returned` | info, or warn after 5 s away | `awayMs` |
-| `answer_after_focus_loss` | warn | `sinceReturnMs`, `awayMs`; its `context` is the question just answered |
 | `pointer_left_page` | info | `awayMs` |
 | `copy_blocked`, `cut_blocked`, `paste_blocked`, `contextmenu_blocked` | info | `target` |
 | `snapshot` | info | `kind`, `reason`, `bytes` (the image goes to `onSnapshot`) |
@@ -289,15 +280,6 @@ Full steps, examples and a prompt for coding agents are in the [docs](https://pr
 - Face counting happens on the candidate's device. The only network requests it makes are to download the MediaPipe files; host them yourself or set `faceDetection: false` to avoid those.
 - The camera preview is hidden during the test by default. The consent notice says the camera stays on.
 - You are responsible for meeting the privacy law that applies to you and your candidates.
-
-## For candidates
-
-If a test you are taking says "Proctored by ProctorKit":
-
-- You are shown what will be recorded and must agree before the test starts.
-- Your camera and screen are captured as still frames at intervals, only for the length of the test. Recording stops when the test ends.
-- If the test pauses, the message tells you what to do, and your timer is stopped while it is paused.
-- Flags are reviewed by a person at the organisation running your test. Questions about your data go to that organisation.
 
 ## Development
 

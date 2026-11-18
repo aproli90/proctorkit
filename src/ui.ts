@@ -71,7 +71,7 @@ export class ProctorUI {
   private cam: HTMLElement | null = null;
   private notice: HTMLElement | null = null;
 
-  constructor(private s: Record<string, string>, theme: 'light' | 'dark' | 'auto', private badge: boolean) {
+  constructor(private s: Record<string, string>, theme: 'light' | 'dark' | 'auto') {
     this.host = h('div');
     this.host.setAttribute('data-proctorkit', '');
     const dark = theme === 'dark' || (theme === 'auto' && typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -122,11 +122,6 @@ export class ProctorUI {
       return { row, mark, body };
     });
     panel.append(list);
-    if (this.badge) {
-      const b = h('a', 'pk-badge'); b.href = 'https://github.com/aproli90/proctorkit#for-candidates'; b.target = '_blank'; b.rel = 'noopener';
-      b.append('Proctored by ', h('strong', undefined, 'ProctorKit'));
-      panel.append(b);
-    }
     scrim.append(panel);
     this.checks = scrim; this.wrap.append(scrim);
     return new Promise((resolve) => {
