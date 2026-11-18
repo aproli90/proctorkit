@@ -1,7 +1,8 @@
-# Publishes to npm when a version tag (v0.1.1, v0.2.0, ...) is pushed.
+# Stages a release on npm when a version tag (v0.1.1, v0.2.0, ...) is pushed. Nothing is public until a maintainer
+# approves it on npmjs.com > Staged Packages, with two-factor authentication.
 # Uses npm trusted publishing: npm trusts this workflow in this repo, so no token or secret is stored anywhere.
 # Set up once on npmjs.com: package proctorkit > Settings > Trusted publisher > GitHub Actions,
-# owner aproli90, repository proctorkit, workflow publish.yml.
+# owner aproli90, repository proctorkit, workflow publish.yml, with "Allow npm publish" left off.
 name: Publish to npm
 on:
   push:
@@ -18,9 +19,10 @@ jobs:
         with:
           node-version: 24          # ships an npm new enough for trusted publishing
           registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest   # npm stage needs npm 11.15 or later
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - name: Tag matches package.json
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - run: npm publish --access public
+      - run: npm stage publish --access public
