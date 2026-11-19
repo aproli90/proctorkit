@@ -21,6 +21,14 @@ const PAUSE_ORDER: PauseReason[] = ['display', 'camera', 'screen', 'fullscreen']
 const CLIPBOARD = ['copy', 'cut', 'paste', 'contextmenu'] as const;
 
 /** Creates a proctor for one test session. Nothing is requested or recorded until `runChecks()` is called. */
+/** A route on the backend's endpoint. A query on the endpoint (such as a region hint) is kept on every route. */
+export function routeUrl(endpoint: string, path: string, query = ''): string {
+  const i = endpoint.indexOf('?');
+  const base = (i < 0 ? endpoint : endpoint.slice(0, i)).replace(/\/$/, '');
+  const q = [i < 0 ? '' : endpoint.slice(i + 1), query].filter(Boolean).join('&');
+  return `${base}${path}${q ? '?' + q : ''}`;
+}
+
 export function createProctor(config: ProctorConfig = {}): Proctor {
   return new Proctor(config);
 }
@@ -676,7 +684,7 @@ export class Proctor {
       const clip = this.clipUploads.shift()!;
       this.clipUploading++;
       const q = new URLSearchParams({ kind: clip.kind, startMs: String(clip.startMs), endMs: String(clip.endMs), frames: String(clip.frames), context: JSON.stringify(clip.context) });
-      void this.send(`${cloud.endpoint.replace(/\/$/, '')}/clip?${q}`, { method: 'POST', headers: { 'Content-Type': 'video/mp4', 'X-PK-Token': cloud.sessionToken }, body: clip.mp4 }, 3)
+      void this.send(routeUrl(cloud.endpoint, '/clip', String(q)), { method: 'POST', headers: { 'Content-Type': 'video/mp4', 'X-PK-Token': cloud.sessionToken }, body: clip.mp4 }, 3)
         .then((ok) => { if (!ok) this.emit('clip_upload_failed', 'warn', { kind: clip.kind, startMs: clip.startMs }); })
         .finally(() => { this.clipUploading--; this.pumpClips(); });
     }
@@ -695,7 +703,7 @@ export class Proctor {
     while (cloud && this.uploading < 2 && this.uploads.length) {
       const shot = this.uploads.shift()!;
       this.uploading++;
-      void this.post(`${cloud.endpoint.replace(/\/$/, '')}/snapshot`, { token: cloud.sessionToken, kind: shot.kind, image: shot.dataUrl, reason: shot.reason, at: shot.at, ms: shot.ms, context: shot.context, page: { title: document.title, host: location.host } }, 3)
+      void this.post(routeUrl(cloud.endpoint, '/snapshot'), { token: cloud.sessionToken, kind: shot.kind, image: shot.dataUrl, reason: shot.reason, at: shot.at, ms: shot.ms, context: shot.context, page: { title: document.title, host: location.host } }, 3)
         .then((ok) => { if (!ok) this.emit('snapshot_upload_failed', 'warn', { kind: shot.kind, ms: shot.ms }); })
         .finally(() => { this.uploading--; this.pump(); });
     }
@@ -705,7 +713,7 @@ export class Proctor {
     const cloud = this.cloud;
     if (!cloud || !this.outbox.length) return;
     const batch = this.outbox.splice(0, 200);
-    const ok = await this.post(`${cloud.endpoint.replace(/\/$/, '')}/events`, { token: cloud.sessionToken, events: batch }, final ? 1 : 2, final);
+    const ok = await this.post(routeUrl(cloud.endpoint, '/events'), { token: cloud.sessionToken, events: batch }, final ? 1 : 2, final);
     if (!ok && !final) this.outbox.unshift(...batch);
   }
 
