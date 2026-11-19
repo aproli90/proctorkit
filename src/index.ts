@@ -280,7 +280,7 @@ export class Proctor {
   giveConsent(): void {
     if (this.consented) return;
     this.consented = true;
-    this.emit('consent_given', 'info', { retentionDays: this.consent.retentionDays ?? 90 });
+    this.emit('consent_given', 'info', { retentionDays: this.consent.retentionDays ?? null });
   }
 
   /** True when every required stream is live and consent was given. */
@@ -422,7 +422,7 @@ export class Proctor {
     const every = this.clipSec() || this.intervalSec;
     const fill = (t: string) => t.replace('{organisation}', org).replace('{interval}', String(every)).replace('{days}', String(c.retentionDays ?? 90));
     const what = !(this.intervalSec && (this.need.camera || this.need.screenShare)) ? this.s.consentWhatNoSnapshots : this.clipSec() ? this.s.consentWhatVideo : this.s.consentWhat;
-    return [[this.s.labelWhat, fill(what)], [this.s.labelWhy, fill(this.set.automatedChecks ? this.s.consentWhyChecks : this.s.consentWhy)], [this.s.labelKept, fill(this.s.consentKept)], [this.s.labelSeenBy, c.seenBy || fill(this.s.consentSeenBy)]];
+    return [[this.s.labelWhat, fill(what)], [this.s.labelWhy, fill(this.set.automatedChecks ? this.s.consentWhyChecks : this.s.consentWhy)], [this.s.labelKept, fill(c.retentionDays == null ? this.s.consentKeptByHost : this.s.consentKept)], [this.s.labelSeenBy, c.seenBy || fill(this.s.consentSeenBy)]];
   }
 
   private emit(type: ProctorEventType, severity: Severity, data?: Record<string, unknown>): ProctorEvent {

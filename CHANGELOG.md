@@ -8,6 +8,9 @@
 - The consent notice says plainly when the video is on.
 - **With a page key, `candidate: { id, name }` is required** (`email` optional), so every report and dashboard row shows a real person. `test: { id, name }` is optional and groups candidates by test. `createProctor` throws if a page key is given without a candidate.
 - `cloud` uploads clips to `POST {endpoint}/clip`.
+- A query on the backend endpoint (such as a region hint) is kept on every upload route.
+- Without a key, the consent notice states a retention period only if `consent.retentionDays` is set; otherwise it points candidates to the organisation's privacy notice.
+- Installs straight from GitHub (`npm install github:aproli90/proctorkit#v0.2`), built on install.
 
 ## 0.1.0
 

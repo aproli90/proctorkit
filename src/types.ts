@@ -74,7 +74,11 @@ export interface TestInfo {
 export interface ConsentInfo {
   /** Who is running the test, shown in the consent notice. */
   organisation?: string;
-  /** How long snapshots are kept, shown in the consent notice. Default 90. */
+  /**
+   * How long the recording is kept, shown in the consent notice. With a key, ProctorKit Cloud sets it. Without one,
+   * set it to what your own storage really does; left out, the notice points candidates to your privacy notice
+   * instead of promising a period.
+   */
   retentionDays?: number;
   /** Who can see the data. Default: "Reviewers at <organisation>." */
   seenBy?: string;

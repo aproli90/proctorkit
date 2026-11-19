@@ -53,7 +53,7 @@ The SDK gives you the signals; what you do with them is up to you. [ProctorKit C
 | A report per candidate, laid out by question, with the video at 5x speed | Build your own | Yes, with a private link for each reviewer |
 | Results sent to your server when a session ends or its review is done | | Webhooks and a REST API |
 | Dashboard for your team, keys locked to your domains | | Yes |
-| AI watches every session's video and marks the moments worth seeing: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
+| AI reviews each session and marks the moments worth a look: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
 | Review priority from 0 to 100, so the riskiest sessions come first | | With Record + AI review |
 | Price | Free, forever | Record: free during launch. Record + AI review: $0.25 per candidate session\* (₹15 in India), first 50 free |
 
@@ -339,7 +339,7 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 [ProctorKit Cloud](https://proctorkit.com) stores the video and gives you a dashboard, candidates grouped by test, and a private report link per candidate, laid out by question. Each key runs in one of two modes:
 
 - **Record**: the session video, photos and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then $0.10 per session (₹5 in India).
-- **Record + AI review**: AI watches the whole video of every session (a phone in use, another person close by, another app on screen), marks the moments worth seeing so you can jump straight to them, and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. You can mark any session clear or a concern yourself. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
+- **Record + AI review**: AI reviews each session (a phone in use, another person close by, another app on screen), marks the moments worth a look so you can jump straight to them, and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. You can mark any session clear or a concern yourself. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
 
 A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
 
@@ -361,6 +361,7 @@ Every request and response, the flag types, limits and a prompt for coding agent
 ## Privacy
 
 - Nothing is requested or recorded before `runChecks()`.
+- Without a key you store the recording yourself, so the consent notice only states a retention period if you set `consent.retentionDays`; otherwise it points candidates to your privacy notice.
 - When the session video is on, the consent notice says so in plain words: a video of the webcam and the screen, made from a picture about every 2 seconds.
 - The consent notice appears before the test and states what is captured, why, for how long and who sees it. Set `consent` so it is accurate for you.
 - With no `cloud` setting, ProctorKit sends nothing anywhere. You are responsible for what your handlers store.

@@ -19,6 +19,7 @@ export const defaultStrings: Record<string, string> = {
   consentWhy: 'So {organisation} can confirm the test was taken fairly. A person reviews anything flagged.',
   consentWhyChecks: 'So {organisation} can confirm the test was taken fairly. Automated checks flag moments for a person to review.',
   consentKept: '{days} days, then deleted.',
+  consentKeptByHost: 'As set out in the privacy notice of {organisation}.',
   consentSeenBy: 'Reviewers at {organisation}.',
   consentCheckbox: 'I understand and agree to this for the length of the test.',
   consentButton: 'Start test',

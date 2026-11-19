@@ -45,7 +45,8 @@
   "sideEffects": false,
   "scripts": {
     "build": "node build.mjs",
-    "test": "npm run build && node test/smoke.mjs"
+    "test": "npm run build && node test/smoke.mjs",
+    "prepare": "node build.mjs"
   },
   "devDependencies": {
     "@mediapipe/tasks-vision": "^1.2.3",
