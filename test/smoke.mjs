@@ -82,18 +82,50 @@ const browser = await chromium.launch({
   });
   await page.goto(`${base}/test/page.html`);
   const ok = await page.evaluate(async () => {
-    const evs = []; const p = ProctorKit.createProctor({ key: 'pk_pub_good', apiBase: '/api', faceDetection: false, ui: 'headless', context: { candidateId: 'c_9' }, onEvent: (e) => evs.push(e) });
+    const evs = []; const p = ProctorKit.createProctor({ key: 'pk_pub_good', apiBase: '/api', faceDetection: false, ui: 'headless', candidate: { id: 'c_9', name: 'Asha Rao', email: 'asha@example.com' }, test: { name: 'Sales screening' }, onEvent: (e) => evs.push(e) });
     await p.runChecks(); return { types: evs.map((e) => e.type), sessionId: p.sessionId };
   });
   check('page key: session opened before the checks', ok.types[0] === 'cloud_connected' && ok.sessionId === 's_1', ok.types.join(','));
-  check('page key: candidate id sent as the external id', asked?.externalId === 'c_9');
+  check('page key: candidate and test sent', asked?.candidate?.id === 'c_9' && asked.candidate.name === 'Asha Rao' && asked.test?.name === 'Sales screening');
+  const missing = await page.evaluate(() => { try { ProctorKit.createProctor({ key: 'pk_pub_good' }); return null; } catch (e) { return String(e.message); } });
+  check('page key without a candidate: refused with a clear message', !!missing && missing.includes('candidate.id and candidate.name are required'));
   const warns = []; page.on('console', (m) => { if (m.type() === 'warning') warns.push(m.text()); });
   const bad = await page.evaluate(async () => {
-    const evs = []; const p = ProctorKit.createProctor({ key: 'pk_pub_bad', apiBase: '/api', faceDetection: false, ui: 'headless', onEvent: (e) => evs.push(e) });
+    const evs = []; const p = ProctorKit.createProctor({ key: 'pk_pub_bad', apiBase: '/api', faceDetection: false, ui: 'headless', candidate: { id: 'c_9', name: 'Asha Rao' }, onEvent: (e) => evs.push(e) });
     const r = await p.runChecks(); return { first: evs[0], checksRan: evs.length > 1 || r.ok !== undefined };
   });
   check('refused key: fails open with the reason', bad.first?.type === 'cloud_unavailable' && bad.first.data.code === 'domain_not_allowed' && bad.checksRan);
   check('refused key: developer sees the fix in the console', warns.some((w) => w.includes('Add localhost')));
+  await context.close();
+}
+
+// ---- 1c. clips: a frame every second, one clip per 10 s window, uploaded and handed to onClip
+{
+  const context = await browser.newContext({ permissions: ['camera'] });
+  const page = await context.newPage();
+  const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
+  await page.addInitScript(mocks);
+  const posts = [];
+  await page.route('**/pk3/clip?*', (route) => { const r = route.request(); posts.push({ url: r.url(), token: r.headers()['x-pk-token'], type: r.headers()['content-type'], len: r.postDataBuffer()?.length || 0 }); return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+  await page.route('**/pk3/snapshot', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
+  await page.route('**/pk3/events', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+  await page.goto(`${base}/test/page.html`);
+  const r = await page.evaluate(async () => {
+    const clips = [];
+    const p = ProctorKit.createProctor({ ui: 'headless', faceDetection: false, clips: { frameSec: 1, windowSec: 10 }, cloud: { endpoint: '/pk3', sessionToken: 'tok_clip' }, onClip: (c) => clips.push(c) });
+    await p.runChecks(); p.giveConsent(); p.start();
+    await new Promise((res) => setTimeout(res, 23000));
+    p.stop();
+    await new Promise((res) => setTimeout(res, 1500));
+    const first = clips.find((c) => c.kind === 'webcam');
+    const frames = first ? ProctorKit.clipFrames(new Uint8Array(await first.mp4.arrayBuffer())) : [];
+    return { n: clips.length, kinds: clips.map((c) => c.kind + ':' + c.frames + ':' + c.startMs + '-' + c.endMs), firstFrames: first?.frames, parsed: frames.length, jpeg: frames.every((f) => f[0] === 0xff && f[1] === 0xd8) };
+  });
+  check('clips: one per stream per window, plus the partial window at stop', r.n >= 6, r.kinds.join(' '));
+  check('clips: frames read back as JPEGs', r.parsed === r.firstFrames && r.parsed >= 6 && r.jpeg, `${r.parsed} of ${r.firstFrames}`);
+  await page.waitForTimeout(1500);
+  check('clips: uploaded as MP4 with the session token', posts.length === r.n && posts.every((x) => x.token === 'tok_clip' && x.type === 'video/mp4' && x.len > 1000), `${posts.length} uploads`);
+  check('clips: no page errors', errors.length === 0, errors.join('; '));
   await context.close();
 }
 
