@@ -288,7 +288,7 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `consent_given` | info | `retentionDays` |
 | `started`, `stopped` | info | |
 | `cloud_connected` | info | `sessionId` (page key only) |
-| `cloud_unavailable` | warn | `code` and `message`: the page key was refused (`key_invalid`, `key_off`, `domain_not_allowed`, `free_used`, `daily_cap`) or the service could not be reached. The test carries on with the on-device checks |
+| `cloud_unavailable` | warn | `code` and `message`: the page key was refused (`key_invalid`, `key_off`, `domain_not_allowed`, `daily_cap`) or the service could not be reached. The test carries on with the on-device checks |
 | `context_changed` | info | the values that changed |
 | `paused`, `resumed` | info | `reason`, `pausedMs` |
 | `fullscreen_exit` | warn | |
