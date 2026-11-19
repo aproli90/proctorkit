@@ -28,7 +28,7 @@ The key comes free from [proctorkit.com](https://proctorkit.com), which stores t
 - **Fair to candidates.** Plain consent before anything is recorded, a pause screen with one button to fix each problem, and a timer that stops while the test is paused.
 - **Evidence you can watch.** A video of the whole test, plus regular photos, so a reviewer sees what actually happened. Every clip, photo and event carries the question on screen at that moment.
 - **Hard to get wrong.** It checks browser support up front, never hangs, and keeps the test running if an upload fails.
-- **Private by default.** Nothing is captured before `runChecks()`, and nothing leaves the page except through your own handlers.
+- **Private by default.** Nothing is captured before `runChecks()`, and nothing leaves the page except through your own handlers, or to ProctorKit Cloud when you pass a key.
 
 ## Everything in the free SDK
 
@@ -146,7 +146,7 @@ A complete page is in [`examples/basic.html`](examples/basic.html).
 | Per-question behaviour | on | Time since the question appeared on each focus loss; the pointer leaving the page |
 | Face in view, checked on the candidate's device | on | The test cannot start until the detector has loaded and a face is in view. During the test it asks the candidate to move back into view and reports `no_face`. It never reports other people. No frame leaves the page for it |
 | Camera preview | setup only | Shown while the candidate sets up, hidden during the test |
-| Session video | on when something receives it | A video of the webcam and of the screen, delivered as one MP4 per half minute to `onClip` or ProctorKit Cloud. Built from a picture about every 2 seconds (the moment varies by up to a second), so a reviewer watches 30 minutes in a few. Off without `onClip`, a key or `cloud`, so nothing is built that nobody receives |
+| Session video | on when something receives it | A video of the webcam and of the screen, delivered as one MP4 per half minute to `onClip` or ProctorKit Cloud. Built from a picture about every 2 seconds (the moment varies by up to a second). Off without `onClip`, a key or `cloud`, so nothing is built that nobody receives |
 | Webcam and screen photos | about every 10 s | JPEG data URLs to `onSnapshot`; the exact moment varies by a few seconds; extra photos when something happens |
 | Question tagging | `setContext()` | Every event and frame carries the context at that moment |
 | Session report | `stop()` | Totals, counts per event type, full event list |
@@ -155,14 +155,10 @@ Everything above runs in the browser, including building the video: no server-si
 
 ## What it cannot do
 
-Browser proctoring deters casual cheating and produces evidence for a reviewer. It does not stop a determined cheat, and you should not present it as if it does.
+Browser proctoring deters cheating and gives a reviewer evidence. It does not stop a determined cheat, and you should not present it as if it does.
 
-- It cannot see a phone, notes or a person outside the camera frame.
-- Some screen-overlay tools do not appear in a shared screen.
-- It records no sound, so it cannot hear someone dictating answers.
-- The video is a picture every couple of seconds, not full motion: something that lasts under two seconds can fall between pictures.
+- It sees only what the camera and the shared screen show, and it records no sound.
 - It does not check who the candidate is.
-- A mirrored second monitor or an HDMI splitter looks like one screen to a browser.
 - Everything runs on a page the candidate controls. Treat a clean log as "nothing was observed", not as proof.
 - Phones and tablets cannot share their screen from the browser, so the default setup needs a desktop browser. Chrome and Edge give the fullest checks.
 
@@ -302,7 +298,7 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `consent_given` | info | `retentionDays` |
 | `started`, `stopped` | info | |
 | `cloud_connected` | info | `sessionId` (page key only) |
-| `cloud_unavailable` | warn | `code` and `message`: the page key was refused (`key_invalid`, `key_off`, `domain_not_allowed`, `daily_cap`) or the service could not be reached. The test carries on with the on-device checks |
+| `cloud_unavailable` | warn | `code` and `message`: the page key was refused (`key_invalid`, `key_off`, `domain_not_allowed`, `daily_cap`, `candidate_required`) or the service (`unavailable`) could not be reached. The test carries on with the on-device checks |
 | `context_changed` | info | the values that changed |
 | `paused`, `resumed` | info | `reason`, `pausedMs` |
 | `fullscreen_exit` | warn | |
@@ -357,7 +353,7 @@ const proctor = createProctor({
 });
 ```
 
-3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`, list sessions with `GET /api/v1/sessions?candidateId=...`, download the video with `GET /api/v1/sessions/{sessionId}/media`, or set a webhook on the key to be told when a session ends and when its review is done.
+3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`, list sessions with `GET /api/v1/sessions?candidateId=...`, download the recording with `GET /api/v1/sessions/{sessionId}/media`, or set a webhook on the key to be told when a session ends and when its review is done.
 
 Every request and response, the flag types, limits and a prompt for coding agents are in the [docs](https://proctorkit.com/docs/). There is also a [demo you can try to cheat](https://proctorkit.com/demo/).
 
@@ -367,7 +363,7 @@ Every request and response, the flag types, limits and a prompt for coding agent
 - Without a key you store the recording yourself, so the consent notice only states a retention period if you set `consent.retentionDays`; otherwise it points candidates to your privacy notice.
 - When the session video is on, the consent notice says so in plain words: a video of the webcam and the screen, made from a picture about every 2 seconds.
 - The consent notice appears before the test and states what is captured, why, for how long and who sees it. Set `consent` so it is accurate for you.
-- With no `cloud` setting, ProctorKit sends nothing anywhere. You are responsible for what your handlers store.
+- With no `key` or `cloud` setting, ProctorKit sends nothing anywhere. You are responsible for what your handlers store.
 - Face counting happens on the candidate's device. The only network requests it makes are to download the MediaPipe files; host them yourself or set `faceDetection: false` to avoid those.
 - The camera preview is hidden during the test by default. The consent notice says the camera stays on.
 - You are responsible for meeting the privacy law that applies to you and your candidates.

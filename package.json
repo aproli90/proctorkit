@@ -1,7 +1,7 @@
 {
   "name": "proctorkit",
   "version": "0.2.0",
-  "description": "Proctoring for the quiz you already built: a free browser SDK for system checks, consent, full-screen and entire-screen-share guards, camera and face-in-view checks, snapshots and a per-question event log. Optional ProctorKit Cloud for reports and AI review.",
+  "description": "Proctoring for the quiz you already built: a free browser SDK for system checks, consent, full-screen and entire-screen-share guards, camera and face-in-view checks, a video of the webcam and screen, photos and a per-question event log. Optional ProctorKit Cloud for reports and AI review.",
   "keywords": [
     "proctoring",
     "proctor",

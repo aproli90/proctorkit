@@ -144,7 +144,7 @@ export interface ProctorConfig {
   cameraTile?: boolean;
   /** Replace any interface text. Keys are listed in `defaultStrings`. */
   strings?: Partial<Record<string, string>>;
-  /** Initial context, for example `{ candidateId: 'c_123', testId: 'physio-screening' }`. */
+  /** Initial context, for example `{ attempt: 2, section: 'reasoning' }`. */
   context?: ProctorContext;
   /** Called for every event as it happens. */
   onEvent?: (event: ProctorEvent) => void;
