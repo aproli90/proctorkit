@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Shorter consent notice: "Video of your webcam and screen for the whole test, and when you leave the test window." It no longer gives the picture rate.
+
 ## 0.2.0
 
 - **Session video.** The SDK now builds a video of the webcam and the screen for the whole test, in the browser: a picture about every 2 seconds, packed into one MP4 per half minute (Motion JPEG, no re-encoding). Clips go to the new `onClip` handler, or to ProctorKit Cloud with a key. Without `onClip`, a key or `cloud`, nothing is built. Turn it off with `clips: false`; tune it with `clips: { frameSec, windowSec }` or the `clipFrameSec`, `clipJitterSec` and `clipWindowSec` settings. Photos about every 10 seconds carry on as before.

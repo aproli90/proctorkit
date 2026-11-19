@@ -361,11 +361,11 @@ Every request and response, the flag types, limits and a prompt for coding agent
 
 - Nothing is requested or recorded before `runChecks()`.
 - Without a key you store the recording yourself, so the consent notice only states a retention period if you set `consent.retentionDays`; otherwise it points candidates to your privacy notice.
-- When the session video is on, the consent notice says so in plain words: a video of the webcam and the screen, made from a picture about every 2 seconds.
+- When the session video is on, the consent notice says so in plain words: video of the webcam and the screen for the whole test.
 - The consent notice appears before the test and states what is captured, why, for how long and who sees it. Set `consent` so it is accurate for you.
 - With no `key` or `cloud` setting, ProctorKit sends nothing anywhere. You are responsible for what your handlers store.
 - Face counting happens on the candidate's device. The only network requests it makes are to download the MediaPipe files; host them yourself or set `faceDetection: false` to avoid those.
-- The camera preview is hidden during the test by default. The consent notice says the camera stays on.
+- The camera preview is hidden during the test by default. The consent notice says the webcam is recorded for the whole test.
 - You are responsible for meeting the privacy law that applies to you and your candidates.
 
 ## Development

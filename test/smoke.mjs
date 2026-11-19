@@ -176,7 +176,7 @@ const browser = await chromium.launch({
 
   const consent = await page.locator('.pk-consent__list').innerText();
   check('camera preview is shown during setup', await page.locator('.pk-cam.is-setup').isVisible() && (await page.locator('.pk-cam__status').innerText()) === 'Keep your face in this picture');
-  check('consent states organisation, cadence and retention', consent.includes('Acme Hiring') && consent.includes('every 2 seconds') && consent.includes('90 days'));
+  check('consent states organisation, what is recorded and retention', consent.includes('Acme Hiring') && consent.includes('webcam and screen') && consent.includes('90 days'));
   check('start is disabled until consent is ticked', await page.locator('[data-step="consent"] .pk-btn').isDisabled());
   await page.locator('.pk-check input').check();
   await page.locator('[data-step="consent"] .pk-btn').click();
