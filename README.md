@@ -50,8 +50,9 @@ The SDK gives you the signals; what you do with them is up to you. [ProctorKit C
 | --- | --- | --- |
 | Everything in the table above | Yes | Yes |
 | Where the video, photos and events go | Your handlers and your storage | Stored for you, deleted on schedule |
-| A report per candidate, laid out by question, with the video at 5x speed | Build your own | Yes, with a private link for each reviewer |
+| A report per candidate, with the recording laid out by question | Build your own | Yes, with a private link for each reviewer |
 | Results sent to your server when a session ends or its review is done | | Webhooks and a REST API |
+| Your team: invite reviewers, one account per client, share a report by link | | Yes |
 | Dashboard for your team, keys locked to your domains | | Yes |
 | AI reviews each session and marks the moments worth a look: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
 | Review priority from 0 to 100, so the riskiest sessions come first | | With Record + AI review |
