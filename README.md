@@ -4,16 +4,18 @@
 
 [![npm](https://img.shields.io/npm/v/proctorkit)](https://www.npmjs.com/package/proctorkit) [![types](https://img.shields.io/npm/types/proctorkit)](#typescript) [![size](https://img.shields.io/bundlephobia/minzip/proctorkit)](https://bundlephobia.com/package/proctorkit) [![licence](https://img.shields.io/npm/l/proctorkit)](LICENSE)
 
-One small browser library turns any web test into a proctored one: a system check, consent, full screen, entire-screen sharing, camera and face checks, a sped-up video of the webcam and the screen for the whole test, and an event log tied to each question. It pauses the test when something breaks and helps the candidate fix it. Free, MIT licensed, written in TypeScript, no dependencies, about 13 kB gzipped.
+One small browser library turns any web test into a proctored one: a system check, consent, full screen, entire-screen sharing, camera and face checks, a video of the webcam and the screen for the whole test, photos every 10 seconds, and an event log tied to each question. It pauses the test when something breaks and helps the candidate fix it. Free, MIT licensed, written in TypeScript, no dependencies, about 13 kB gzipped.
 
 ```js
 import { createProctor } from 'proctorkit';
 
-const proctor = createProctor({ onEvent: console.log, onClip: saveVideo });
+const proctor = createProctor({ key: 'pk_pub_...', candidate: { id: 'c-1042', name: 'Asha Rao' } });
 if ((await proctor.runChecks()).ok) proctor.start();   // on the Start button
 proctor.setContext({ questionId: 'Q1' });              // whenever the question changes
 proctor.stop();                                        // on submit: returns the session report
 ```
+
+The key comes free from [proctorkit.com](https://proctorkit.com), which stores the recording and gives each candidate a report. No account? Leave out `key` and `candidate`, and keep everything yourself with `onEvent`, `onClip` and `onSnapshot` (see the [quick start](#quick-start)).
 
 <p align="center"><img src="https://proctorkit.com/assets/proctorkit-demo.gif" alt="A candidate goes through the system check and consent, the test pauses when they leave full screen, and the reviewer's report shows each flagged moment next to its question" width="100%"></p>
 
@@ -24,7 +26,7 @@ proctor.stop();                                        // on submit: returns the
 - **Keep your test.** It works on any web page you control: React, Vue, Svelte, Angular, a plain HTML form or a tool you built. Your questions, answers and scoring never pass through ProctorKit.
 - **A ready interface, or none.** The built-in screens handle the system check, consent and pauses, with light and dark themes and every word replaceable. Or go headless and drive your own screens from events.
 - **Fair to candidates.** Plain consent before anything is recorded, a pause screen with one button to fix each problem, and a timer that stops while the test is paused.
-- **Evidence you can watch.** A sped-up video of the whole test, not a photo every few seconds, so a reviewer sees what actually happened. Every clip, photo and event carries the question on screen at that moment.
+- **Evidence you can watch.** A video of the whole test, plus regular photos, so a reviewer sees what actually happened. Every clip, photo and event carries the question on screen at that moment.
 - **Hard to get wrong.** It checks browser support up front, never hangs, and keeps the test running if an upload fails.
 - **Private by default.** Nothing is captured before `runChecks()`, and nothing leaves the page except through your own handlers.
 
@@ -36,7 +38,7 @@ proctor.stop();                                        // on submit: returns the
 | Camera, with a preview for framing | Time away from the test window, per question | The full event log, each event with its question |
 | Face in view, checked on the candidate's device | Prompts the candidate back into view | The video, photos and screenshots, tagged with their question |
 | Entire-screen share required, window and tab shares refused | Copy, cut, paste and right-click blocked and logged | |
-| Single display required (Chromium) | A sped-up video of the webcam and the screen, the whole way through | |
+| Single display required (Chromium) | A video of the webcam and the screen, the whole way through | |
 | Consent: what is recorded, why, for how long, who sees it | A photo and screenshot about every 10 seconds, plus extra ones when something happens | |
 | | Pointer leaving the page | |
 
@@ -144,7 +146,7 @@ A complete page is in [`examples/basic.html`](examples/basic.html).
 | Per-question behaviour | on | Time since the question appeared on each focus loss; the pointer leaving the page |
 | Face in view, checked on the candidate's device | on | The test cannot start until the detector has loaded and a face is in view. During the test it asks the candidate to move back into view and reports `no_face`. It never reports other people. No frame leaves the page for it |
 | Camera preview | setup only | Shown while the candidate sets up, hidden during the test |
-| Session video | on when something receives it | A sped-up video of the webcam and of the screen, delivered as one MP4 per half minute to `onClip` or ProctorKit Cloud. Built from a picture about every 2 seconds (the moment varies by up to a second), so a reviewer watches 30 minutes in a few. Off without `onClip`, a key or `cloud`, so nothing is built that nobody receives |
+| Session video | on when something receives it | A video of the webcam and of the screen, delivered as one MP4 per half minute to `onClip` or ProctorKit Cloud. Built from a picture about every 2 seconds (the moment varies by up to a second), so a reviewer watches 30 minutes in a few. Off without `onClip`, a key or `cloud`, so nothing is built that nobody receives |
 | Webcam and screen photos | about every 10 s | JPEG data URLs to `onSnapshot`; the exact moment varies by a few seconds; extra photos when something happens |
 | Question tagging | `setContext()` | Every event and frame carries the context at that moment |
 | Session report | `stop()` | Totals, counts per event type, full event list |
