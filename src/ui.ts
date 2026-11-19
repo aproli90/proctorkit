@@ -14,6 +14,7 @@ export const defaultStrings: Record<string, string> = {
   screenWrongSurface: 'That shared a window or tab.',
   consentTitle: 'Review what is recorded',
   consentWhat: 'A webcam photo and a screenshot about every {interval} seconds, and when you leave the test window. Your camera stays on during the test even when its preview is hidden.',
+  consentWhatVideo: 'A video of your webcam and your screen, made from a picture about every {interval} seconds, and when you leave the test window. Your camera stays on during the test even when its preview is hidden.',
   consentWhatNoSnapshots: 'When you leave the test window or full screen, and copy or paste attempts.',
   consentWhy: 'So {organisation} can confirm the test was taken fairly. A person reviews anything flagged.',
   consentWhyChecks: 'So {organisation} can confirm the test was taken fairly. Automated checks flag moments for a person to review.',

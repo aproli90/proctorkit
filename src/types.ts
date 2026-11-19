@@ -14,7 +14,7 @@ export type ProctorEventType =
   | 'extra_display'
   | 'focus_lost' | 'focus_returned' | 'pointer_left_page' | 'answer_after_focus_loss'
   | 'copy_blocked' | 'cut_blocked' | 'paste_blocked' | 'contextmenu_blocked'
-  | 'snapshot' | 'snapshot_upload_failed';
+  | 'snapshot' | 'snapshot_upload_failed' | 'clip' | 'clip_upload_failed';
 
 export interface ProctorEvent {
   type: ProctorEventType;
@@ -37,6 +37,38 @@ export interface Snapshot {
   at: string;
   ms: number;
   context: ProctorContext;
+}
+
+/**
+ * Half a minute of the test from the camera or the screen, as a short video: the frames taken every couple of
+ * seconds, one per second of clip, so it plays faster than real time.
+ */
+export interface Clip {
+  kind: 'webcam' | 'screen';
+  /** Milliseconds since `start()` of the first and last frame. */
+  startMs: number;
+  endMs: number;
+  /** Number of frames in the clip. */
+  frames: number;
+  /** The clip as an MP4 (Motion JPEG). `clipFrames()` turns it back into JPEG images. */
+  mp4: Blob;
+  /** The context when the clip started, for example the question on screen. */
+  context: ProctorContext;
+}
+
+/** Who is taking the test. Required with a page key, so every report shows a real person. */
+export interface Candidate {
+  /** Your ID for this candidate. Attempts with the same ID are grouped together in the dashboard. */
+  id: string;
+  /** Shown in the dashboard and the report. */
+  name: string;
+  email?: string;
+}
+
+/** Which test this is, to group candidates in the dashboard. Optional; the key's name is used when left out. */
+export interface TestInfo {
+  id?: string;
+  name?: string;
 }
 
 export interface ConsentInfo {
@@ -76,6 +108,17 @@ export interface ProctorConfig {
     /** Seconds between frames. Default 10. Same as `settings.snapshotIntervalSec`. */
     intervalSec?: number;
   };
+  /**
+   * The test as short clips: a frame every couple of seconds from the camera and the screen, packed into one
+   * clip per half minute (see `Clip`). On by default; `false` keeps the photos only. Clips go to `onClip`
+   * and, with a key or `cloud`, to the backend.
+   */
+  clips?: false | {
+    /** Seconds between clip frames. Default 2. */
+    frameSec?: number;
+    /** Seconds of test per clip. Default 30. */
+    windowSec?: number;
+  };
   /** Timings and thresholds. Anything left out keeps its default; see `defaultSettings`. */
   settings?: Partial<import('./settings.js').ProctorSettings>;
   /**
@@ -101,8 +144,14 @@ export interface ProctorConfig {
   context?: ProctorContext;
   /** Called for every event as it happens. */
   onEvent?: (event: ProctorEvent) => void;
-  /** Called with every frame. Use this to store frames yourself. */
+  /** Called with every photo. Use this to store photos yourself. */
   onSnapshot?: (snapshot: Snapshot) => void;
+  /** Called with every clip, about every half minute per camera and screen. Use this to store clips yourself. */
+  onClip?: (clip: Clip) => void;
+  /** Who is taking the test. Required with `key`; with `cloud`, your server sends it when it creates the session. */
+  candidate?: Candidate;
+  /** Which test this is. Optional. */
+  test?: TestInfo;
   /**
    * Send events and snapshots to a ProctorKit-compatible backend.
    * `sessionToken` must be a short-lived token issued by your server; never put an API key in the page.

@@ -4,12 +4,12 @@
 
 [![npm](https://img.shields.io/npm/v/proctorkit)](https://www.npmjs.com/package/proctorkit) [![types](https://img.shields.io/npm/types/proctorkit)](#typescript) [![size](https://img.shields.io/bundlephobia/minzip/proctorkit)](https://bundlephobia.com/package/proctorkit) [![licence](https://img.shields.io/npm/l/proctorkit)](LICENSE)
 
-One small browser library turns any web test into a proctored one: a system check, consent, full screen, entire-screen sharing, camera and face checks, regular photos and screenshots, and an event log tied to each question. It pauses the test when something breaks and helps the candidate fix it. Free, MIT licensed, written in TypeScript, no dependencies, about 11 kB gzipped.
+One small browser library turns any web test into a proctored one: a system check, consent, full screen, entire-screen sharing, camera and face checks, a sped-up video of the webcam and the screen for the whole test, and an event log tied to each question. It pauses the test when something breaks and helps the candidate fix it. Free, MIT licensed, written in TypeScript, no dependencies, about 13 kB gzipped.
 
 ```js
 import { createProctor } from 'proctorkit';
 
-const proctor = createProctor({ onEvent: console.log, onSnapshot: saveFrame });
+const proctor = createProctor({ onEvent: console.log, onClip: saveVideo });
 if ((await proctor.runChecks()).ok) proctor.start();   // on the Start button
 proctor.setContext({ questionId: 'Q1' });              // whenever the question changes
 proctor.stop();                                        // on submit: returns the session report
@@ -17,14 +17,14 @@ proctor.stop();                                        // on submit: returns the
 
 <p align="center"><img src="https://proctorkit.com/assets/proctorkit-demo.gif" alt="A candidate goes through the system check and consent, the test pauses when they leave full screen, and the reviewer's report shows each flagged moment next to its question" width="100%"></p>
 
-> Status: 0.1, pre-release. The API may change before 1.0.
+> Status: 0.2, pre-release. The API may change before 1.0.
 
 ## Why teams use it
 
 - **Keep your test.** It works on any web page you control: React, Vue, Svelte, Angular, a plain HTML form or a tool you built. Your questions, answers and scoring never pass through ProctorKit.
 - **A ready interface, or none.** The built-in screens handle the system check, consent and pauses, with light and dark themes and every word replaceable. Or go headless and drive your own screens from events.
 - **Fair to candidates.** Plain consent before anything is recorded, a pause screen with one button to fix each problem, and a timer that stops while the test is paused.
-- **Evidence by question.** Every event, photo and screenshot carries the question on screen at that moment, so a reviewer sees what happened and where.
+- **Evidence you can watch.** A sped-up video of the whole test, not a photo every few seconds, so a reviewer sees what actually happened. Every clip, photo and event carries the question on screen at that moment.
 - **Hard to get wrong.** It checks browser support up front, never hangs, and keeps the test running if an upload fails.
 - **Private by default.** Nothing is captured before `runChecks()`, and nothing leaves the page except through your own handlers.
 
@@ -34,10 +34,11 @@ proctor.stop();                                        // on submit: returns the
 | --- | --- | --- |
 | Browser support check, with what is missing | Pauses on leaving full screen, stopping the share, losing the camera or adding a display, and resumes when fixed | A session report: duration, paused time, time away, counts per event type |
 | Camera, with a preview for framing | Time away from the test window, per question | The full event log, each event with its question |
-| Face in view, checked on the candidate's device | Prompts the candidate back into view | Every photo and screenshot, tagged with its question |
+| Face in view, checked on the candidate's device | Prompts the candidate back into view | The video, photos and screenshots, tagged with their question |
 | Entire-screen share required, window and tab shares refused | Copy, cut, paste and right-click blocked and logged | |
-| Single display required (Chromium) | Webcam photo and screenshot about every 10 seconds, plus extra ones when something happens | |
-| Consent: what is recorded, why, for how long, who sees it | Pointer leaving the page | |
+| Single display required (Chromium) | A sped-up video of the webcam and the screen, the whole way through | |
+| Consent: what is recorded, why, for how long, who sees it | A photo and screenshot about every 10 seconds, plus extra ones when something happens | |
+| | Pointer leaving the page | |
 
 Plus, for developers: TypeScript types, ES module and script-tag builds, a headless mode, themes, replaceable text, every timing in one settings object, and `activeMs()` for a countdown that never counts a pause.
 
@@ -48,15 +49,16 @@ The SDK gives you the signals; what you do with them is up to you. [ProctorKit C
 | | Free SDK | ProctorKit Cloud |
 | --- | --- | --- |
 | Everything in the table above | Yes | Yes |
-| Where photos, screenshots and events go | Your handlers and your storage | Stored for you, deleted on schedule |
-| A report per candidate, laid out by question | Build your own | Yes, with a private link for each reviewer |
+| Where the video, photos and events go | Your handlers and your storage | Stored for you, deleted on schedule |
+| A report per candidate, laid out by question, with the video at 5x speed | Build your own | Yes, with a private link for each reviewer |
+| Results sent to your server when a session ends or its review is done | | Webhooks and a REST API |
 | Dashboard for your team, keys locked to your domains | | Yes |
-| AI review of every photo and screenshot: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
+| AI watches every session's video and marks the moments worth seeing: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
 | Review priority from 0 to 100, so the riskiest sessions come first | | With Record + AI review |
 | Price | Free, forever | Record: free during launch. Record + AI review: $0.25 per candidate session\* (₹15 in India), first 50 free |
 
 ```js
-const proctor = createProctor({ key: 'pk_pub_...' });   // the same proctor, now reporting to your dashboard
+const proctor = createProctor({ key: 'pk_pub_...', candidate: { id: user.id, name: user.name } });   // the same proctor, now reporting to your dashboard
 ```
 
 [Create a key](https://proctorkit.com/app/?new), [try the demo](https://proctorkit.com/demo/) (try to cheat; you get the report), or read the [docs](https://proctorkit.com/docs/) for the REST API.
@@ -77,20 +79,19 @@ or with a script tag (global `ProctorKit`):
 
 ## Quick start
 
-React, with a page key from the [ProctorKit dashboard](https://proctorkit.com/app/?new) (results and reports in the dashboard):
+React, with a page key from the [ProctorKit dashboard](https://proctorkit.com/app/?new) (results and reports in the dashboard). A page key needs to know who is taking the test: `candidate.id` and `candidate.name` are required, `email` is optional. Add `test: { id, name }` to group candidates by test; without it they are grouped under the key's name.
 
 ```jsx
 import { useEffect, useState } from 'react';
 import { createProctor } from 'proctorkit';
 
-const proctor = createProctor({ key: 'pk_pub_...' });   // once, outside the component
-
-export function Quiz({ candidateId, questions }) {
+export function Quiz({ user, questions }) {
+  // once per candidate: the dashboard and report show this person by name
+  const [proctor] = useState(() => createProctor({ key: 'pk_pub_...', candidate: { id: user.id, name: user.name, email: user.email } }));
   const [started, setStarted] = useState(false);
   const [i, setI] = useState(0);
 
   const begin = async () => {                           // the Start button
-    proctor.setContext({ candidateId });
     if ((await proctor.runChecks()).ok && proctor.start()) setStarted(true);
   };
 
@@ -101,13 +102,14 @@ export function Quiz({ candidateId, questions }) {
 }
 ```
 
-Without an account (free, nothing leaves the page except through your handlers): leave out `key` and take the events and frames yourself.
+Without an account (free, nothing leaves the page except through your handlers): leave out `key` and take the events and the video yourself.
 
 ```js
 const proctor = createProctor({
   consent: { organisation: 'Acme Hiring', retentionDays: 90 },
   onEvent: (event) => sendToYourServer(event),
-  onSnapshot: (snapshot) => uploadToYourStorage(snapshot.dataUrl),
+  onClip: (clip) => uploadToYourStorage(clip.mp4),          // a half-minute stretch of the session video, webcam or screen
+  onSnapshot: (snapshot) => uploadToYourStorage(snapshot.dataUrl),   // optional: a photo about every 10 s as well
 });
 // runChecks(), start(), setContext() and stop() work the same way
 ```
@@ -117,7 +119,7 @@ Plain HTML, no build step:
 ```html
 <script src="https://cdn.jsdelivr.net/npm/proctorkit/dist/proctorkit.global.js"></script>
 <script>
-  const proctor = ProctorKit.createProctor({ key: 'pk_pub_...' });
+  const proctor = ProctorKit.createProctor({ key: 'pk_pub_...', candidate: { id: 'c-1042', name: 'Asha Rao' } });
   document.querySelector('#start').onclick = async () => {
     if ((await proctor.runChecks()).ok && proctor.start()) showFirstQuestion();
   };
@@ -141,11 +143,12 @@ A complete page is in [`examples/basic.html`](examples/basic.html).
 | Per-question behaviour | on | Time since the question appeared on each focus loss; the pointer leaving the page |
 | Face in view, checked on the candidate's device | on | The test cannot start until the detector has loaded and a face is in view. During the test it asks the candidate to move back into view and reports `no_face`. It never reports other people. No frame leaves the page for it |
 | Camera preview | setup only | Shown while the candidate sets up, hidden during the test |
-| Webcam and screen frames | about every 10 s | JPEG data URLs; the exact moment varies by a few seconds; extra frames when something happens |
+| Session video | on when something receives it | A sped-up video of the webcam and of the screen, delivered as one MP4 per half minute to `onClip` or ProctorKit Cloud. Built from a picture about every 2 seconds (the moment varies by up to a second), so a reviewer watches 30 minutes in a few. Off without `onClip`, a key or `cloud`, so nothing is built that nobody receives |
+| Webcam and screen photos | about every 10 s | JPEG data URLs to `onSnapshot`; the exact moment varies by a few seconds; extra photos when something happens |
 | Question tagging | `setContext()` | Every event and frame carries the context at that moment |
 | Session report | `stop()` | Totals, counts per event type, full event list |
 
-Everything above runs in the browser. Frames and events go only to your own `onEvent` and `onSnapshot` handlers unless you configure `cloud`.
+Everything above runs in the browser, including building the video: no server-side processing is needed. The video, photos and events go only to your own handlers unless you pass a key or configure `cloud`.
 
 ## What it cannot do
 
@@ -154,6 +157,7 @@ Browser proctoring deters casual cheating and produces evidence for a reviewer. 
 - It cannot see a phone, notes or a person outside the camera frame.
 - Some screen-overlay tools do not appear in a shared screen.
 - It records no sound, so it cannot hear someone dictating answers.
+- The video is a picture every couple of seconds, not full motion: something that lasts under two seconds can fall between pictures.
 - It does not check who the candidate is.
 - A mirrored second monitor or an HDMI splitter looks like one screen to a browser.
 - Everything runs on a page the candidate controls. Treat a clean log as "nothing was observed", not as proof.
@@ -164,7 +168,8 @@ Browser proctoring deters casual cheating and produces evidence for a reviewer. 
 ```ts
 createProctor({
   require: { camera: true, screenShare: true, fullscreen: true, singleDisplay: true },
-  snapshots: { intervalSec: 10 },      // or false
+  snapshots: { intervalSec: 10 },      // or false (also turns the video off)
+  clips: { frameSec: 2, windowSec: 30 },   // the session video; or false for photos only
   blockClipboard: true,
   consent: { organisation, retentionDays: 90, seenBy },
   ui: 'default',                       // or 'headless'
@@ -174,8 +179,10 @@ createProctor({
   settings: {},                        // timings and thresholds; see below
   strings: { pausedTitle: 'Test paused' },   // replace any text; see defaultStrings
   context: {},
-  onEvent, onSnapshot,
+  onEvent, onClip, onSnapshot,
   key: 'pk_pub_...',                   // optional: a page key from the ProctorKit dashboard
+  candidate: { id, name, email },      // required with a page key: who is taking the test
+  test: { id, name },                  // optional, with a page key: groups candidates by test
   cloud: { endpoint, sessionToken },   // optional: a session your server created with a server key
   apiBase: undefined,                  // where ProctorKit Cloud lives; leave unset
 });
@@ -195,6 +202,9 @@ Every timing and threshold is in one object, `defaultSettings`. Pass only what y
 | --- | --- | --- |
 | `snapshotIntervalSec` | 10 | Seconds between regular frames |
 | `snapshotJitterSec` | 3 | Each frame is taken up to this many seconds early or late |
+| `clipFrameSec` | 2 | Seconds between the pictures that make up the video |
+| `clipJitterSec` | 1 | Each video picture is taken up to this many seconds early or late |
+| `clipWindowSec` | 30 | Seconds of the session in each clip |
 | `hideCameraAfterSetup` | true | Show the camera preview during the system check only |
 | `faceSetupWaitSec` | 12 | During setup, how long to wait for a face before asking the candidate to adjust |
 | `absencePromptSec` | 10 | No face for this long: ask the candidate to move back into view |
@@ -251,11 +261,12 @@ The package ships its declarations; nothing extra to install. Exported types:
 import { createProctor, Proctor, defaultSettings, defaultStrings } from 'proctorkit';
 import type {
   ProctorConfig, ProctorEvent, ProctorEventType, Severity, ProctorContext, ProctorSettings,
-  Snapshot, CheckResult, ProctorReport, ConsentInfo, FaceDetectionOptions,
+  Snapshot, Clip, Candidate, TestInfo, CheckResult, ProctorReport, ConsentInfo, FaceDetectionOptions,
 } from 'proctorkit';
+import { clipFrames } from 'proctorkit';   // clipFrames(mp4Bytes) gives back the JPEG pictures of a clip
 ```
 
-`ProctorEvent` is `{ type, at, ms, severity, context, data? }`; `Snapshot` is `{ kind: 'webcam' | 'screen', dataUrl, reason: 'interval' | 'event', at, ms, context }`; `CheckResult` is `{ ok, reason?, missing? }`; `ProctorReport` is `{ startedAt, endedAt, durationMs, pausedMs, awayMs, context, counts, events }`. Hover them in your editor for every field.
+`ProctorEvent` is `{ type, at, ms, severity, context, data? }`; `Snapshot` is `{ kind: 'webcam' | 'screen', dataUrl, reason: 'interval' | 'event', at, ms, context }`; `Clip` is `{ kind, startMs, endMs, frames, mp4, context }`, where `mp4` is a Blob that plays in any player that reads Motion JPEG; `CheckResult` is `{ ok, reason?, missing? }`; `ProctorReport` is `{ startedAt, endedAt, durationMs, pausedMs, awayMs, context, counts, events }`. Hover them in your editor for every field.
 
 ## Pauses and your timer
 
@@ -304,6 +315,8 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `copy_blocked`, `cut_blocked`, `paste_blocked`, `contextmenu_blocked` | info | `target` |
 | `snapshot` | info | `kind`, `reason`, `bytes` (the image goes to `onSnapshot`) |
 | `snapshot_upload_failed` | warn | |
+| `clip` | info | `kind`, `startMs`, `endMs`, `frames`, `bytes` (the video goes to `onClip`) |
+| `clip_upload_failed` | warn | `kind`, `startMs`; the photos still cover that stretch |
 
 Severity describes how much attention an event deserves, not guilt. Do not fail a candidate automatically on any of them.
 
@@ -313,23 +326,24 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 ## Sending data to a backend
 
-`cloud` posts JSON to two routes on `endpoint`:
+`cloud` posts to three routes on `endpoint`:
 
+- `POST {endpoint}/clip?kind&startMs&endMs&frames&context` with the MP4 as the body (`Content-Type: video/mp4`) and the token in the `X-PK-Token` header
 - `POST {endpoint}/snapshot` with `{ token, kind, image, reason, at, ms, context, page }`, where `page` is the test page's title and host
 - `POST {endpoint}/events` with `{ token, events }`
 
-`sessionToken` must be a short-lived token your server issues for one session. Never put an API key in the page. Failed uploads are retried and then dropped with a `snapshot_upload_failed` event; a backend outage never stops the test.
+`sessionToken` must be a short-lived token your server issues for one session. Never put an API key in the page. Failed uploads are retried and then dropped with a `snapshot_upload_failed` or `clip_upload_failed` event; a backend outage never stops the test.
 
 ### ProctorKit Cloud (hosted, optional)
 
-[ProctorKit Cloud](https://proctorkit.com) stores the frames and gives you a dashboard and a private report link per candidate, laid out by question. Each key runs in one of two modes:
+[ProctorKit Cloud](https://proctorkit.com) stores the video and gives you a dashboard, candidates grouped by test, and a private report link per candidate, laid out by question. Each key runs in one of two modes:
 
-- **Record**: photos, screenshots and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then $0.10 per session (₹5 in India).
-- **Record + AI review**: AI checks every photo and screenshot (a phone in use, another person close by, another app on screen) and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
+- **Record**: the session video, photos and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then $0.10 per session (₹5 in India).
+- **Record + AI review**: AI watches the whole video of every session (a phone in use, another person close by, another app on screen), marks the moments worth seeing so you can jump straight to them, and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. You can mark any session clear or a concern yourself. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
 
 A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
 
-1. Your server creates a session with your server key: `POST https://proctorkit.com/api/v1/sessions` with `Authorization: Bearer pk_live_...` and `{ externalId, metadata }`. The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
+1. Your server creates a session with your server key: `POST https://proctorkit.com/api/v1/sessions` with `Authorization: Bearer pk_live_...` and `{ candidate: { id, name, email }, test: { id, name }, metadata }` (`candidate.id` and `candidate.name` are required). The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
 2. Pass `endpoint`, `sessionToken` and `settings` to the page:
 
 ```js
@@ -340,13 +354,14 @@ const proctor = createProctor({
 });
 ```
 
-3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`.
+3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`, list sessions with `GET /api/v1/sessions?candidateId=...`, download the video with `GET /api/v1/sessions/{sessionId}/media`, or set a webhook on the key to be told when a session ends and when its review is done.
 
 Every request and response, the flag types, limits and a prompt for coding agents are in the [docs](https://proctorkit.com/docs/). There is also a [demo you can try to cheat](https://proctorkit.com/demo/).
 
 ## Privacy
 
 - Nothing is requested or recorded before `runChecks()`.
+- When the session video is on, the consent notice says so in plain words: a video of the webcam and the screen, made from a picture about every 2 seconds.
 - The consent notice appears before the test and states what is captured, why, for how long and who sees it. Set `consent` so it is accurate for you.
 - With no `cloud` setting, ProctorKit sends nothing anywhere. You are responsible for what your handlers store.
 - Face counting happens on the candidate's device. The only network requests it makes are to download the MediaPipe files; host them yourself or set `faceDetection: false` to avoid those.

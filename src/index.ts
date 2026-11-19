@@ -1,12 +1,14 @@
 import { ProctorUI, defaultStrings, type StepSpec } from './ui.js';
-import type { CheckResult, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types.js';
+import type { CheckResult, Clip, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types.js';
+import { mjpegMp4 } from './clip.js';
 import { resolveSettings, type ProctorSettings } from './settings.js';
 import { loadFaceCounter, type FaceCounter } from './face.js';
 
-export type { CheckResult, ConsentInfo, FaceDetectionOptions, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types.js';
+export type { Candidate, CheckResult, Clip, ConsentInfo, TestInfo, FaceDetectionOptions, ProctorConfig, ProctorContext, ProctorEvent, ProctorEventType, ProctorReport, Severity, Snapshot } from './types.js';
 export { defaultSettings, type ProctorSettings } from './settings.js';
 export { loadFaceCounter, faceDefaults, type FaceCounter } from './face.js';
 export { defaultStrings } from './ui.js';
+export { clipFrames, mjpegMp4 } from './clip.js';
 
 type PauseReason = 'fullscreen' | 'screen' | 'camera' | 'display';
 type Outcome = { ok: true } | { ok: false; error: string; fix: string };
@@ -70,6 +72,10 @@ export class Proctor {
   private absent = false;
   private manyFaces = 0;
 
+  private clipBuf: Record<'webcam' | 'screen', { window: number; w: number; h: number; context: ProctorContext; frames: { ms: number; bytes: Uint8Array }[] } | null> = { webcam: null, screen: null };
+  private clipTimer: ReturnType<typeof setTimeout> | null = null;
+  private clipUploads: Clip[] = [];
+  private clipUploading = 0;
   private uploads: Snapshot[] = [];
   private uploading = 0;
   private outbox: ProctorEvent[] = [];
@@ -87,7 +93,9 @@ export class Proctor {
     this.tile = config.cameraTile === false || config.ui === 'headless' ? 'never' : config.cameraTile === true || !this.set.hideCameraAfterSetup ? 'always' : 'setup';
     this.s = { ...defaultStrings };
     for (const [k, v] of Object.entries(config.strings || {})) if (typeof v === 'string') this.s[k] = v;
-    this.context = { ...(config.context || {}) };
+    // with a page key every session belongs to a named person; without one the host decides
+    if (config.key && (!config.candidate?.id || !config.candidate?.name)) throw new Error('[ProctorKit] candidate.id and candidate.name are required with a key, for example createProctor({ key, candidate: { id: user.id, name: user.name, email: user.email } }).');
+    this.context = { ...(config.candidate ? { candidateId: config.candidate.id } : {}), ...(config.context || {}) };
     this.cloud = config.cloud ?? null;
     this.consent = { ...(config.consent || {}) };
   }
@@ -102,7 +110,7 @@ export class Proctor {
   private async connect(): Promise<void> {
     const base = (this.config.apiBase || DEFAULT_API).replace(/\/$/, '');
     try {
-      const res = await fetch(`${base}/page/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: this.config.key, externalId: this.context.candidateId ?? undefined, metadata: this.context }) });
+      const res = await fetch(`${base}/page/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: this.config.key, candidate: this.config.candidate, test: this.config.test, metadata: this.context }) });
       const body = await res.json().catch(() => ({})) as { sessionId?: string; sessionToken?: string; endpoint?: string; organisation?: string; retentionDays?: number; settings?: Partial<ProctorSettings>; error?: string; code?: string };
       if (!res.ok || !body.sessionToken || !body.endpoint) throw Object.assign(new Error(body.error || `HTTP ${res.status}`), { code: body.code || 'unavailable' });
       this.cloud = { endpoint: body.endpoint, sessionToken: body.sessionToken };
@@ -299,6 +307,7 @@ export class Proctor {
       setTimeout(() => this.tick(), 1500); // first frames once the streams are producing
       this.schedule();
     }
+    if (this.clipSec()) this.scheduleClip(1500);
     if (this.faces) this.faceTimer = setInterval(() => void this.faceCheck(), this.set.faceCheckIntervalSec * 1000);
     if (this.cloud) this.flushTimer = setInterval(() => void this.flushEvents(), 5000);
 
@@ -312,6 +321,8 @@ export class Proctor {
   /** Stops everything, releases the camera and screen, and returns the session report. */
   stop(): ProctorReport {
     if (this.running) {
+      // the last, partial half minute becomes a clip before the streams stop
+      void this.flushClip('webcam'); void this.flushClip('screen');
       if (this.leftAt) this.onBack();
       if (this.pausedSince) { this.pausedMs += Date.now() - this.pausedSince; this.pausedSince = 0; }
       this.emit('stopped', 'info');
@@ -326,8 +337,8 @@ export class Proctor {
     document.documentElement.removeEventListener('mouseenter', this.onPointerBack);
     CLIPBOARD.forEach((t) => document.removeEventListener(t, this.onClipboard, true));
     for (const t of [this.displayTimer, this.flushTimer, this.faceTimer]) if (t) clearInterval(t);
-    for (const t of [this.timer, this.awayShot]) if (t) clearTimeout(t);
-    this.timer = this.displayTimer = this.flushTimer = this.awayShot = this.faceTimer = null;
+    for (const t of [this.timer, this.awayShot, this.clipTimer]) if (t) clearTimeout(t);
+    this.timer = this.clipTimer = this.displayTimer = this.flushTimer = this.awayShot = this.faceTimer = null;
     this.faces?.close(); this.faces = null; this.faceSeen = false;
     this.noFaceSince = 0; this.absent = false; this.manyFaces = 0; this.pointerLeftAt = 0; this.longReturn = null;
     const cam = this.cam, scr = this.scr;
@@ -399,8 +410,10 @@ export class Proctor {
   private consentFacts(): [string, string][] {
     const c = this.consent;
     const org = c.organisation || this.s.organisationFallback;
-    const fill = (t: string) => t.replace('{organisation}', org).replace('{interval}', String(this.intervalSec)).replace('{days}', String(c.retentionDays ?? 90));
-    const what = this.intervalSec && (this.need.camera || this.need.screenShare) ? this.s.consentWhat : this.s.consentWhatNoSnapshots;
+    // the consent notice states how often a picture is taken, which with clips is the clip cadence
+    const every = this.clipSec() || this.intervalSec;
+    const fill = (t: string) => t.replace('{organisation}', org).replace('{interval}', String(every)).replace('{days}', String(c.retentionDays ?? 90));
+    const what = !(this.intervalSec && (this.need.camera || this.need.screenShare)) ? this.s.consentWhatNoSnapshots : this.clipSec() ? this.s.consentWhatVideo : this.s.consentWhat;
     return [[this.s.labelWhat, fill(what)], [this.s.labelWhy, fill(this.set.automatedChecks ? this.s.consentWhyChecks : this.s.consentWhy)], [this.s.labelKept, fill(this.s.consentKept)], [this.s.labelSeenBy, c.seenBy || fill(this.s.consentSeenBy)]];
   }
 
@@ -603,6 +616,72 @@ export class Proctor {
     }
   }
 
+  // ---- clips: a frame every couple of seconds per stream, packed into one MP4 per half minute
+
+  /** Seconds between clip frames, or 0 when clips are off or nobody would receive them. */
+  private clipSec(): number {
+    if (this.config.clips === false || this.config.snapshots === false) return 0;
+    if (!this.cloud && !this.config.onClip && !this.config.key) return 0;
+    const c = this.config.clips;
+    return (c && c.frameSec) || this.set.clipFrameSec;
+  }
+  private clipWindowMs(): number { const c = this.config.clips; return ((c && c.windowSec) || this.set.clipWindowSec) * 1000; }
+
+  private scheduleClip(first?: number): void {
+    const sec = this.clipSec();
+    if (!this.running || !sec) return;
+    const wait = first ?? Math.max(0.5, sec + (Math.random() * 2 - 1) * this.set.clipJitterSec) * 1000;
+    this.clipTimer = setTimeout(() => { void this.clipFrame(); this.scheduleClip(); }, wait);
+  }
+
+  private async clipFrame(): Promise<void> {
+    if (!this.running || this.pauses.size) return;
+    const ms = Date.now() - this.startedAt, win = Math.floor(ms / this.clipWindowMs());
+    const context = { ...this.context };
+    for (const [kind, video, edge] of [['webcam', this.camV, 600], ['screen', this.scrV, 1200]] as const) {
+      if (!video || !video.videoWidth || !live(video.srcObject as MediaStream | null)) continue;
+      let bytes: Uint8Array, w: number, h: number;
+      try {
+        const k = edge / Math.max(video.videoWidth, video.videoHeight);
+        const canvas = document.createElement('canvas');
+        w = canvas.width = Math.round(video.videoWidth * k); h = canvas.height = Math.round(video.videoHeight * k);
+        canvas.getContext('2d')!.drawImage(video, 0, 0, w, h);
+        const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.6));
+        if (!blob) continue;
+        bytes = new Uint8Array(await blob.arrayBuffer());
+      } catch { continue; }
+      const buf = this.clipBuf[kind];
+      // a clip holds one half minute and one picture size; a new window or a resized screen starts a new clip
+      if (buf && (buf.window !== win || buf.w !== w || buf.h !== h)) await this.flushClip(kind);
+      const cur = this.clipBuf[kind] || (this.clipBuf[kind] = { window: win, w, h, context, frames: [] });
+      cur.frames.push({ ms, bytes });
+    }
+  }
+
+  private async flushClip(kind: 'webcam' | 'screen'): Promise<void> {
+    const buf = this.clipBuf[kind];
+    this.clipBuf[kind] = null;
+    if (!buf || !buf.frames.length) return;
+    let mp4: Uint8Array;
+    try { mp4 = mjpegMp4(buf.frames.map((f) => f.bytes)).mp4; } catch { return; }
+    const clip: Clip = { kind, startMs: buf.frames[0].ms, endMs: buf.frames[buf.frames.length - 1].ms, frames: buf.frames.length, mp4: new Blob([mp4 as Uint8Array<ArrayBuffer>], { type: 'video/mp4' }), context: buf.context };
+    this.emit('clip', 'info', { kind, startMs: clip.startMs, endMs: clip.endMs, frames: clip.frames, bytes: mp4.length });
+    try { this.config.onClip?.(clip); } catch (e) { console.error('[proctorkit] onClip threw', e); }
+    if (this.cloud) { this.clipUploads.push(clip); if (this.clipUploads.length > 8) { this.clipUploads.shift(); this.emit('clip_upload_failed', 'warn', { dropped: true }); } this.pumpClips(); }
+  }
+
+  private pumpClips(): void {
+    const cloud = this.cloud;
+    while (cloud && this.clipUploading < 1 && this.clipUploads.length) {
+      const clip = this.clipUploads.shift()!;
+      this.clipUploading++;
+      const q = new URLSearchParams({ kind: clip.kind, startMs: String(clip.startMs), endMs: String(clip.endMs), frames: String(clip.frames), context: JSON.stringify(clip.context) });
+      void this.send(`${cloud.endpoint.replace(/\/$/, '')}/clip?${q}`, { method: 'POST', headers: { 'Content-Type': 'video/mp4', 'X-PK-Token': cloud.sessionToken }, body: clip.mp4 }, 3)
+        .then((ok) => { if (!ok) this.emit('clip_upload_failed', 'warn', { kind: clip.kind, startMs: clip.startMs }); })
+        .finally(() => { this.clipUploading--; this.pumpClips(); });
+    }
+  }
+
   // ---- optional backend. Failures never stop the test: frames are retried, then dropped and logged.
 
   private queueUpload(shot: Snapshot): void {
@@ -630,10 +709,14 @@ export class Proctor {
     if (!ok && !final) this.outbox.unshift(...batch);
   }
 
-  private async post(url: string, body: unknown, attempts: number, keepalive = false): Promise<boolean> {
+  private post(url: string, body: unknown, attempts: number, keepalive = false): Promise<boolean> {
+    return this.send(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive }, attempts);
+  }
+
+  private async send(url: string, init: RequestInit, attempts: number): Promise<boolean> {
     for (let i = 0; i < attempts; i++) {
       try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive });
+        const res = await fetch(url, init);
         if (res.ok) return true;
         if (res.status >= 400 && res.status < 500 && res.status !== 429) return false; // retrying will not help
       } catch { /* network error: retry */ }

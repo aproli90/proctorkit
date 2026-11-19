@@ -3,8 +3,14 @@
  * with a ProctorKit backend, pass the `settings` object from the create-session response unchanged.
  */
 export interface ProctorSettings {
-  /** Seconds between regular frames. */
+  /** Seconds between photos (kept as they are, and the backup if a clip is lost). */
   snapshotIntervalSec: number;
+  /** Seconds between clip frames; 0 turns clips off. */
+  clipFrameSec: number;
+  /** Each clip frame is taken up to this many seconds early or late. */
+  clipJitterSec: number;
+  /** Seconds of test in one clip. */
+  clipWindowSec: number;
   /** Frames are checked automatically by a backend. Only changes the consent wording; a backend sets it. */
   automatedChecks: boolean;
   /** Each frame is taken up to this many seconds early or late, so the moment cannot be predicted. */
@@ -35,6 +41,9 @@ export interface ProctorSettings {
 
 export const defaultSettings: ProctorSettings = {
   snapshotIntervalSec: 10,
+  clipFrameSec: 2,
+  clipJitterSec: 1,
+  clipWindowSec: 30,
   automatedChecks: false,
   snapshotJitterSec: 3,
   hideCameraAfterSetup: true,
@@ -65,6 +74,9 @@ export function resolveSettings(given: unknown, legacyIntervalSec?: unknown): Pr
   out.snapshotIntervalSec = Math.max(2, out.snapshotIntervalSec);
   out.snapshotJitterSec = Math.min(out.snapshotJitterSec, out.snapshotIntervalSec / 2);
   out.faceCheckIntervalSec = Math.max(0.5, out.faceCheckIntervalSec);
+  if (out.clipFrameSec) out.clipFrameSec = Math.max(1, out.clipFrameSec);
+  out.clipJitterSec = Math.min(out.clipJitterSec, out.clipFrameSec / 2);
+  out.clipWindowSec = Math.max(10, Math.min(120, out.clipWindowSec));
   out.frozenFeedFrames = Math.max(2, Math.round(out.frozenFeedFrames));
   out.multipleFacesChecks = Math.max(1, Math.round(out.multipleFacesChecks));
   return out;

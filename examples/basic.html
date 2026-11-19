@@ -36,7 +36,8 @@
     consent: { organisation: 'Acme Hiring', retentionDays: 90 },
     context: { candidateId: 'demo-candidate', testId: 'sample-quiz' },
     onEvent: (e) => { log.textContent = `${String(e.ms).padStart(6)} ms  ${e.severity.padEnd(4)}  ${e.type}  ${JSON.stringify(e.data || {})}\n` + log.textContent; },
-    onSnapshot: (s) => { /* store s.dataUrl yourself, or configure `cloud` */ },
+    onClip: (c) => { /* store c.mp4 (a half-minute stretch of the session video) yourself, or pass a key */ },
+    onSnapshot: (s) => { /* optional: store s.dataUrl, a photo about every 10 s */ },
   });
 
   document.querySelector('#begin').onclick = async () => {
