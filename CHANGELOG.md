@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- README only: every example that uses a key names the test (`test: { id, name }`), and code blocks fit in 80 columns. No code changes.
+
 ## 0.2.2
 
 - Fix: in apps built with a bundler (Next.js, webpack, Turbopack, Vite), the camera check failed with "The camera check could not be loaded". The face detector is loaded from a CDN at run time, and the published build had lost the markers that tell bundlers to leave that import alone. Pages that load `proctorkit.global.js` with a script tag were not affected.
