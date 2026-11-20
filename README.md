@@ -56,9 +56,9 @@ The SDK gives you the signals; what you do with them is up to you. [ProctorKit C
 | Results sent to your server when a session ends or its review is done | | Webhooks and a REST API |
 | Your team: invite reviewers, one account per client, share a report by link | | Yes |
 | Dashboard for your team, keys locked to your domains | | Yes |
-| AI reviews each session and marks the moments worth a look: a phone in use, another person, another app on screen, the test hidden | | With Record + AI review |
-| Review priority from 0 to 100, so the riskiest sessions come first | | With Record + AI review |
-| Price | Free, forever | Record: free during launch. Record + AI review: $0.25 per candidate session\* (₹15 in India), first 50 free |
+| AI reviews each session and marks the moments worth a look: a phone in use, another person, another app on screen, the test hidden | | With AI review |
+| Review priority from 0 to 100, so the riskiest sessions come first | | With AI review |
+| Price | Free, forever | Recording only: free during launch. AI review: $0.25 per candidate session\* (₹15 in India), first 50 free |
 
 ```js
 const proctor = createProctor({ key: 'pk_pub_...', candidate: { id: user.id, name: user.name } });   // the same proctor, now reporting to your dashboard
@@ -338,12 +338,12 @@ Set `ui: 'headless'` to render your own screens. `runChecks()` then tries each r
 
 [ProctorKit Cloud](https://proctorkit.com) stores the video and gives you a dashboard, candidates grouped by test, and a private report link per candidate, laid out by question. Each key runs in one of two modes:
 
-- **Record**: the session video, photos and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then $0.10 per session (₹5 in India).
-- **Record + AI review**: AI reviews each session (a phone in use, another person close by, another app on screen), marks the moments worth a look so you can jump straight to them, and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. You can mark any session clear or a concern yourself. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
+- **Recording only**: the session video, photos and browser flags, for you to look through. Free during launch; afterwards 100 candidate sessions a month stay free, then $0.10 per session (₹5 in India).
+- **AI review**: AI reviews each session (a phone in use, another person close by, another app on screen), marks the moments worth a look so you can jump straight to them, and gives each session a 0 to 100 review priority: which candidates to look at first, not a test result. You can mark any session clear or a concern yourself. $0.25 per candidate session at launch price (list $0.40; ₹15 in India), first 50 free.
 
-A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). The quickest start is a page key (`createProctor({ key })`, shown above). For paid volume, use a server key:
+A candidate session is one person taking one test of up to 30 minutes; longer tests count by the minute (45 minutes is 1.5). If your quiz has its own backend, use your account's server key (one for all your tests; it never reaches the page). If it is only a web page, use a page key per test (`createProctor({ key, candidate })`, shown above). With a server key:
 
-1. Your server creates a session with your server key: `POST https://proctorkit.com/api/v1/sessions` with `Authorization: Bearer pk_live_...` and `{ candidate: { id, name, email }, test: { id, name }, metadata }` (`candidate.id` and `candidate.name` are required). The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
+1. Your server creates a session with your server key: `POST https://proctorkit.com/api/v1/sessions` with `Authorization: Bearer pk_live_...` and `{ candidate: { id, name, email }, test: { id, name }, aiReview, metadata }` (`candidate.id` and `candidate.name` are required; `test` tells your tests apart; `aiReview` chooses AI review or Recording only for this session). The response has `sessionToken`, `endpoint`, `settings`, `organisation`, `retentionDays`, `sessionId` and `reportUrl`.
 2. Pass `endpoint`, `sessionToken` and `settings` to the page:
 
 ```js
@@ -354,7 +354,7 @@ const proctor = createProctor({
 });
 ```
 
-3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`, list sessions with `GET /api/v1/sessions?candidateId=...`, download the recording with `GET /api/v1/sessions/{sessionId}/media`, or set a webhook on the key to be told when a session ends and when its review is done.
+3. Keep `reportUrl` on your server and give it to whoever reviews the candidate. Or read the result with `GET https://proctorkit.com/api/v1/sessions/{sessionId}`, list sessions with `GET /api/v1/sessions?candidateId=...`, download the recording with `GET /api/v1/sessions/{sessionId}/media`, or set your account's webhook (dashboard, **Account**) to be told when a session ends and when its review is done.
 
 Every request and response, the flag types, limits and a prompt for coding agents are in the [docs](https://proctorkit.com/docs/). There is also a [demo you can try to cheat](https://proctorkit.com/demo/).
 
