@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.4
+
+- The candidate is reminded to move back into view after 4 seconds out of frame (was 10), as an amber warning with an icon. `no_face` is still reported only after 10 seconds, so a candidate who moves back quickly is reminded, not flagged. New setting `absenceReportSec`; `absencePromptSec` now only sets the reminder.
+
 ## 0.2.3
 
 - README only: every example that uses a key names the test (`test: { id, name }`), and code blocks fit in 80 columns. No code changes.
