@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Fix: in apps built with a bundler (Next.js, webpack, Turbopack, Vite), the camera check failed with "The camera check could not be loaded". The face detector is loaded from a CDN at run time, and the published build had lost the markers that tell bundlers to leave that import alone. Pages that load `proctorkit.global.js` with a script tag were not affected.
+
 ## 0.2.1
 
 - New event `page_closed` (warn): the tab was closed, reloaded or left while the test ran. It is sent as the page goes, so ProctorKit Cloud ends the session within about two minutes instead of waiting for the session token to expire.
