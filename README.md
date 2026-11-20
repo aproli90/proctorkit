@@ -9,10 +9,16 @@ One small browser library turns any web test into a proctored one: a system chec
 ```js
 import { createProctor } from 'proctorkit';
 
-const proctor = createProctor({ key: 'pk_pub_...', candidate: { id: 'c-1042', name: 'Asha Rao' } });
-if ((await proctor.runChecks()).ok) proctor.start();   // on the Start button
-proctor.setContext({ questionId: 'Q1' });              // whenever the question changes
-proctor.stop();                                        // on submit: returns the session report
+const proctor = createProctor({
+  key: 'pk_pub_...',
+  candidate: { id: 'c-1042', name: 'Asha Rao' },
+  test: { id: 'sales-1', name: 'Sales screening' },
+});
+if ((await proctor.runChecks()).ok) proctor.start(); // on the Start button
+// whenever the question changes
+proctor.setContext({ questionId: 'Q1' });
+// on submit: returns the session report
+proctor.stop();
 ```
 
 The key comes free from [proctorkit.com](https://proctorkit.com), which stores the recording and gives each candidate a report. No account? Leave out `key` and `candidate`, and keep everything yourself with `onEvent`, `onClip` and `onSnapshot` (see the [quick start](#quick-start)).
@@ -61,7 +67,12 @@ The SDK gives you the signals; what you do with them is up to you. [ProctorKit C
 | Price | Free, forever | Recording only: free during launch. AI review: $0.25 per candidate session\* (₹15 in India), first 50 free |
 
 ```js
-const proctor = createProctor({ key: 'pk_pub_...', candidate: { id: user.id, name: user.name } });   // the same proctor, now reporting to your dashboard
+// the same proctor, now reporting to your dashboard
+const proctor = createProctor({
+  key: 'pk_pub_...',
+  candidate: { id: user.id, name: user.name },
+  test: { id: 'sales-1', name: 'Sales screening' },
+});
 ```
 
 [Create a key](https://proctorkit.com/app/?new), [try the demo](https://proctorkit.com/demo/) (try to cheat; you get the report), or read the [docs](https://proctorkit.com/docs/) for the REST API.
@@ -90,17 +101,28 @@ import { createProctor } from 'proctorkit';
 
 export function Quiz({ user, questions }) {
   // once per candidate: the dashboard and report show this person by name
-  const [proctor] = useState(() => createProctor({ key: 'pk_pub_...', candidate: { id: user.id, name: user.name, email: user.email } }));
+  const [proctor] = useState(() =>
+    createProctor({
+      key: 'pk_pub_...',
+      candidate: { id: user.id, name: user.name, email: user.email },
+      test: { id: 'sales-1', name: 'Sales screening' },
+    }),
+  );
   const [started, setStarted] = useState(false);
   const [i, setI] = useState(0);
 
-  const begin = async () => {                           // the Start button
+  const begin = async () => {
+    // the Start button
     if ((await proctor.runChecks()).ok && proctor.start()) setStarted(true);
   };
 
-  useEffect(() => { if (started) proctor.setContext({ questionId: questions[i].id }); }, [started, i]);
+  useEffect(() => {
+    if (started) proctor.setContext({ questionId: questions[i].id });
+  }, [started, i]);
 
-  const submit = () => { proctor.stop(); /* then save answers as before */ };
+  const submit = () => {
+    proctor.stop(); // then save answers as before
+  };
   // ...render the quiz once started
 }
 ```
@@ -111,8 +133,10 @@ Without an account (free, nothing leaves the page except through your handlers):
 const proctor = createProctor({
   consent: { organisation: 'Acme Hiring', retentionDays: 90 },
   onEvent: (event) => sendToYourServer(event),
-  onClip: (clip) => uploadToYourStorage(clip.mp4),          // a half-minute stretch of the session video, webcam or screen
-  onSnapshot: (snapshot) => uploadToYourStorage(snapshot.dataUrl),   // optional: a photo about every 10 s as well
+  // a half-minute stretch of the session video, webcam or screen
+  onClip: (clip) => uploadToYourStorage(clip.mp4),
+  // optional: a photo about every 10 s as well
+  onSnapshot: (snapshot) => uploadToYourStorage(snapshot.dataUrl),
 });
 // runChecks(), start(), setContext() and stop() work the same way
 ```
@@ -122,7 +146,11 @@ Plain HTML, no build step:
 ```html
 <script src="https://cdn.jsdelivr.net/npm/proctorkit/dist/proctorkit.global.js"></script>
 <script>
-  const proctor = ProctorKit.createProctor({ key: 'pk_pub_...', candidate: { id: 'c-1042', name: 'Asha Rao' } });
+  const proctor = ProctorKit.createProctor({
+    key: 'pk_pub_...',
+    candidate: { id: 'c-1042', name: 'Asha Rao' },
+    test: { id: 'sales-1', name: 'Sales screening' },
+  });
   document.querySelector('#start').onclick = async () => {
     if ((await proctor.runChecks()).ok && proctor.start()) showFirstQuestion();
   };
@@ -166,31 +194,49 @@ Browser proctoring deters cheating and gives a reviewer evidence. It does not st
 
 ```ts
 createProctor({
-  require: { camera: true, screenShare: true, fullscreen: true, singleDisplay: true },
-  snapshots: { intervalSec: 10 },      // or false (also turns the video off)
-  clips: { frameSec: 2, windowSec: 30 },   // the session video; or false for photos only
+  require: {
+    camera: true,
+    screenShare: true,
+    fullscreen: true,
+    singleDisplay: true,
+  },
+  snapshots: { intervalSec: 10 }, // or false (also turns the video off)
+  // the session video; or false for photos only
+  clips: { frameSec: 2, windowSec: 30 },
   blockClipboard: true,
   consent: { organisation, retentionDays: 90, seenBy },
-  ui: 'default',                       // or 'headless'
-  theme: 'auto',                       // 'light' | 'dark' | 'auto'
-  cameraTile: undefined,               // preview during setup only; true keeps it during the test, false never shows it
-  faceDetection: {},                   // or false; see below
-  settings: {},                        // timings and thresholds; see below
-  strings: { pausedTitle: 'Test paused' },   // replace any text; see defaultStrings
+  ui: 'default', // or 'headless'
+  theme: 'auto', // 'light' | 'dark' | 'auto'
+  // setup preview only; true keeps it in the test, false hides it
+  cameraTile: undefined,
+  faceDetection: {}, // or false; see below
+  settings: {}, // timings and thresholds; see below
+  // replace any text; see defaultStrings
+  strings: { pausedTitle: 'Test paused' },
   context: {},
-  onEvent, onClip, onSnapshot,
-  key: 'pk_pub_...',                   // optional: a page key from the ProctorKit dashboard
-  candidate: { id, name, email },      // required with a page key: who is taking the test
-  test: { id, name },                  // optional, with a page key: groups candidates by test
-  cloud: { endpoint, sessionToken },   // optional: a session your server created with a server key
-  apiBase: undefined,                  // where ProctorKit Cloud lives; leave unset
+  onEvent,
+  onClip,
+  onSnapshot,
+  // optional: a page key from the ProctorKit dashboard
+  key: 'pk_pub_...',
+  // required with a page key: who is taking the test
+  candidate: { id, name, email },
+  // names the test in the dashboard; one key can serve many tests
+  test: { id, name },
+  // optional: a session your server created with a server key
+  cloud: { endpoint, sessionToken },
+  // where ProctorKit Cloud lives; leave unset
+  apiBase: undefined,
 });
 ```
 
 Lightest setup, with no camera or screen share:
 
 ```js
-createProctor({ require: { camera: false, screenShare: false }, snapshots: false });
+createProctor({
+  require: { camera: false, screenShare: false },
+  snapshots: false,
+});
 ```
 
 ### Settings
@@ -224,8 +270,10 @@ While it is on, it is a prerequisite: the camera step passes only when the detec
 It only answers "is the candidate's face in view". When it sees a second face it takes an extra frame and reports nothing, so that judging who else is present is left to whatever checks the frames afterwards.
 
 ```js
-createProctor({ faceDetection: false });                                   // off
-createProctor({ faceDetection: { moduleUrl, wasmUrl, modelUrl } });        // host the files yourself
+// off
+createProctor({ faceDetection: false });
+// host the files yourself
+createProctor({ faceDetection: { moduleUrl, wasmUrl, modelUrl } });
 createProctor({ faceDetection: { detect: (video) => myOwnFaceCount(video) } });
 ```
 
@@ -257,12 +305,30 @@ Call `setContext({ questionId })` whenever the question changes. The per-questio
 The package ships its declarations; nothing extra to install. Exported types:
 
 ```ts
-import { createProctor, Proctor, defaultSettings, defaultStrings } from 'proctorkit';
-import type {
-  ProctorConfig, ProctorEvent, ProctorEventType, Severity, ProctorContext, ProctorSettings,
-  Snapshot, Clip, Candidate, TestInfo, CheckResult, ProctorReport, ConsentInfo, FaceDetectionOptions,
+import {
+  createProctor,
+  Proctor,
+  defaultSettings,
+  defaultStrings,
 } from 'proctorkit';
-import { clipFrames } from 'proctorkit';   // clipFrames(mp4Bytes) gives back the JPEG pictures of a clip
+import type {
+  ProctorConfig,
+  ProctorEvent,
+  ProctorEventType,
+  Severity,
+  ProctorContext,
+  ProctorSettings,
+  Snapshot,
+  Clip,
+  Candidate,
+  TestInfo,
+  CheckResult,
+  ProctorReport,
+  ConsentInfo,
+  FaceDetectionOptions,
+} from 'proctorkit';
+// clipFrames(mp4Bytes) gives back the JPEG pictures of a clip
+import { clipFrames } from 'proctorkit';
 ```
 
 `ProctorEvent` is `{ type, at, ms, severity, context, data? }`; `Snapshot` is `{ kind: 'webcam' | 'screen', dataUrl, reason: 'interval' | 'event', at, ms, context }`; `Clip` is `{ kind, startMs, endMs, frames, mp4, context }`, where `mp4` is a Blob that plays in any player that reads Motion JPEG; `CheckResult` is `{ ok, reason?, missing? }`; `ProctorReport` is `{ startedAt, endedAt, durationMs, pausedMs, awayMs, context, counts, events }`. Hover them in your editor for every field.
@@ -281,8 +347,14 @@ setInterval(() => {
 }, 500);
 
 // 2. Or listen, and stop and start your own timer.
-proctor.on('paused', (e) => { myTimer.stop(); });            // e.data.reason: fullscreen | screen | camera | display
-proctor.on('resumed', (e) => { myTimer.start(); });          // e.data.pausedMs: how long this pause lasted
+// e.data.reason: fullscreen | screen | camera | display
+proctor.on('paused', (e) => {
+  myTimer.stop();
+});
+// e.data.pausedMs: how long this pause lasted
+proctor.on('resumed', (e) => {
+  myTimer.start();
+});
 ```
 
 `paused` can fire more than once while the test is already paused, once per reason; `resumed` fires once, when every reason is cleared. `isBlocked()` is true for the whole time.
@@ -373,8 +445,8 @@ Every request and response, the flag types, limits and a prompt for coding agent
 
 ```bash
 npm install
-npm run build    # dist/proctorkit.js, dist/proctorkit.global.js, type declarations
-npm test         # headless Chromium with a fake camera (set PW_CHROME to use a system browser)
+npm run build    # dist/: the ES module, the script-tag build and the types
+npm test         # headless Chromium, fake camera (PW_CHROME: a system browser)
 ```
 
 ## Licence
