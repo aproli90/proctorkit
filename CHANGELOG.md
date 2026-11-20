@@ -2,6 +2,7 @@
 
 ## 0.2.1
 
+- New event `page_closed` (warn): the tab was closed, reloaded or left while the test ran. It is sent as the page goes, so ProctorKit Cloud ends the session within about two minutes instead of waiting for the session token to expire.
 - Shorter consent notice: "Video of your webcam and screen for the whole test, and when you leave the test window." It no longer gives the picture rate.
 
 ## 0.2.0

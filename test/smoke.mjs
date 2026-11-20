@@ -235,6 +235,8 @@ const browser = await chromium.launch({
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   const back = await page.evaluate(() => window.evs.find((e) => e.type === 'focus_returned'));
   check('time away is measured', !!back && back.data.awayMs >= 800 && (await types()).includes('focus_lost'), back ? `${back.data.awayMs} ms` : '');
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  check('closing the page while the test runs is reported', (await types()).includes('page_closed'));
 
   await sleep(5500); // let the event batch flush
   const report = await page.evaluate(() => window.proctor.stop());

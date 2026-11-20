@@ -12,7 +12,7 @@ export type ProctorEventType =
   | 'camera_lost' | 'camera_restored' | 'virtual_camera' | 'camera_frozen'
   | 'no_face' | 'face_returned'
   | 'extra_display'
-  | 'focus_lost' | 'focus_returned' | 'pointer_left_page' | 'answer_after_focus_loss'
+  | 'focus_lost' | 'focus_returned' | 'pointer_left_page' | 'answer_after_focus_loss' | 'page_closed'
   | 'copy_blocked' | 'cut_blocked' | 'paste_blocked' | 'contextmenu_blocked'
   | 'snapshot' | 'snapshot_upload_failed' | 'clip' | 'clip_upload_failed';
 

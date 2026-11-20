@@ -307,6 +307,7 @@ export class Proctor {
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('blur', this.onLeft);
     window.addEventListener('focus', this.onBack);
+    window.addEventListener('pagehide', this.onPageHide);
     document.documentElement.addEventListener('mouseleave', this.onPointerLeft);
     document.documentElement.addEventListener('mouseenter', this.onPointerBack);
     if (this.config.blockClipboard !== false) CLIPBOARD.forEach((t) => document.addEventListener(t, this.onClipboard, true));
@@ -341,6 +342,7 @@ export class Proctor {
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('blur', this.onLeft);
     window.removeEventListener('focus', this.onBack);
+    window.removeEventListener('pagehide', this.onPageHide);
     document.documentElement.removeEventListener('mouseleave', this.onPointerLeft);
     document.documentElement.removeEventListener('mouseenter', this.onPointerBack);
     CLIPBOARD.forEach((t) => document.removeEventListener(t, this.onClipboard, true));
@@ -496,6 +498,8 @@ export class Proctor {
     else this.unpause('display');
   };
 
+  // the tab is closed, reloaded or navigated away while the test runs: say so before the page goes
+  private onPageHide = (): void => { if (!this.running) return; this.emit('page_closed', 'warn'); void this.flushEvents(true); };
   private onVisibility = (): void => { if (document.hidden) this.onLeft(); else this.onBack(); };
 
   private onLeft = (): void => {

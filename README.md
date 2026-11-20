@@ -311,6 +311,7 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `focus_lost` | warn | `sinceQuestionMs` |
 | `focus_returned` | info, or warn after 5 s away | `awayMs` |
 | `pointer_left_page` | info | `awayMs` |
+| `page_closed` | warn | the tab was closed, reloaded or left while the test ran |
 | `copy_blocked`, `cut_blocked`, `paste_blocked`, `contextmenu_blocked` | info | `target` |
 | `snapshot` | info | `kind`, `reason`, `bytes` (the image goes to `onSnapshot`) |
 | `snapshot_upload_failed` | warn | |
