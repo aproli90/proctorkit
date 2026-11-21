@@ -203,9 +203,18 @@ export class ProctorUI {
   hideCamera(): void { this.cam?.remove(); this.cam = null; }
 
   /** A small message that does not block the test. */
-  showNotice(text: string): void {
-    if (!this.notice) { this.notice = h('div', 'pk-notice'); this.notice.setAttribute('role', 'status'); this.wrap.append(this.notice); }
-    this.notice.textContent = text;
+  showNotice(text: string, tone: 'info' | 'warn' = 'info'): void {
+    if (!this.notice) { this.notice = h('div', 'pk-notice'); this.wrap.append(this.notice); }
+    this.notice.className = 'pk-notice' + (tone === 'warn' ? ' pk-notice--warn' : '');
+    this.notice.setAttribute('role', tone === 'warn' ? 'alert' : 'status');
+    this.notice.replaceChildren();
+    if (tone === 'warn') {
+      // a camera with a line through it
+      const icon = h('span', 'pk-notice__icon');
+      icon.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><path d="M1 1l22 22"/></svg>';
+      this.notice.append(icon);
+    }
+    this.notice.append(document.createTextNode(text));
   }
 
   hideNotice(): void { this.notice?.remove(); this.notice = null; }

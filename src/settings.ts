@@ -19,6 +19,8 @@ export interface ProctorSettings {
   hideCameraAfterSetup: boolean;
   /** With no face in view for this long, ask the candidate to move back. */
   absencePromptSec: number;
+  /** Still no face after this long: report `no_face`. A candidate who moves back sooner is only reminded. */
+  absenceReportSec: number;
   /** During setup, how long to wait for the candidate's face before asking them to adjust. */
   faceSetupWaitSec: number;
   /** Seconds between on-device face checks. */
@@ -47,7 +49,8 @@ export const defaultSettings: ProctorSettings = {
   automatedChecks: false,
   snapshotJitterSec: 3,
   hideCameraAfterSetup: true,
-  absencePromptSec: 10,
+  absencePromptSec: 4,
+  absenceReportSec: 10,
   faceSetupWaitSec: 12,
   faceCheckIntervalSec: 2,
   multipleFacesChecks: 2,
