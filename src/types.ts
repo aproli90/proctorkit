@@ -10,7 +10,7 @@ export type ProctorEventType =
   | 'paused' | 'resumed'
   | 'fullscreen_exit' | 'screen_share_stopped' | 'screen_share_resumed' | 'screen_surface_unverified'
   | 'camera_lost' | 'camera_restored' | 'virtual_camera' | 'camera_frozen'
-  | 'no_face' | 'face_returned'
+  | 'no_face' | 'face_returned' | 'camera_blocked' | 'camera_uncovered'
   | 'extra_display'
   | 'focus_lost' | 'focus_returned' | 'pointer_left_page' | 'answer_after_focus_loss' | 'page_closed'
   | 'copy_blocked' | 'cut_blocked' | 'paste_blocked' | 'contextmenu_blocked'

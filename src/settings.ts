@@ -21,6 +21,8 @@ export interface ProctorSettings {
   absencePromptSec: number;
   /** Still no face after this long: report `no_face`. A candidate who moves back sooner is only reminded. */
   absenceReportSec: number;
+  /** No face and a dark, featureless picture (lens covered, or a very dark room) for this long: report `camera_blocked`. */
+  coverReportSec: number;
   /** During setup, how long to wait for the candidate's face before asking them to adjust. */
   faceSetupWaitSec: number;
   /** Seconds between on-device face checks. */
@@ -51,6 +53,7 @@ export const defaultSettings: ProctorSettings = {
   hideCameraAfterSetup: true,
   absencePromptSec: 4,
   absenceReportSec: 10,
+  coverReportSec: 3,
   faceSetupWaitSec: 12,
   faceCheckIntervalSec: 2,
   multipleFacesChecks: 2,

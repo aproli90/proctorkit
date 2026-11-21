@@ -40,6 +40,7 @@ export const defaultStrings: Record<string, string> = {
   cameraOn: 'Camera on',
   cameraFraming: 'Keep your face in this picture',
   absencePrompt: 'Move back into view of your camera.',
+  coverPrompt: 'Your camera is covered or too dark. Uncover it, or turn on a light.',
   working: 'Checking…',
   faceLoadError: "Part of the camera check didn't download.",
   faceLoadFix: 'Check your internet connection, then try again.',

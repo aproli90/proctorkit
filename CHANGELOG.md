@@ -2,6 +2,7 @@
 
 ## 0.2.5
 
+- A covered camera is detected on the device: no face and a dark, featureless picture for 3 seconds (`coverReportSec`) reports `camera_blocked` (high) instead of `no_face`, and the candidate sees "Your camera is covered or too dark. Uncover it, or turn on a light." `camera_uncovered` logs how long it lasted.
 - Clearer message when the face check's files fail to download: "Part of the camera check didn't download." (was "The camera check could not be loaded.", which read like a camera permission problem).
 - The changelog now ships in the npm package, and each release tag creates a GitHub release with that version's notes.
 - README: a Troubleshooting section, and `sessionId` with a server key explained.

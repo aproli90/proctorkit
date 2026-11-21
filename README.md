@@ -254,6 +254,7 @@ Every timing and threshold is in one object, `defaultSettings`. Pass only what y
 | `faceSetupWaitSec` | 12 | During setup, how long to wait for a face before asking the candidate to adjust |
 | `absencePromptSec` | 4 | No face for this long: ask the candidate to move back into view |
 | `absenceReportSec` | 10 | Still no face after this long: report `no_face` (moving back sooner is only a reminder) |
+| `coverReportSec` | 3 | No face and a dark, featureless picture (lens covered, or a very dark room) for this long: report `camera_blocked` |
 | `faceCheckIntervalSec` | 2 | Seconds between face checks |
 | `multipleFacesChecks` | 2 | Consecutive checks with two or more faces before an extra frame is taken |
 | `minFocusLossMs` | 800 | Shorter focus losses are ignored |
@@ -378,6 +379,8 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `screen_share_stopped`, `camera_lost` | high | |
 | `screen_share_resumed`, `camera_restored` | info | |
 | `no_face` | warn | `seconds` with no face; the candidate is prompted |
+| `camera_blocked` | high | `seconds`: no face and a dark, featureless picture, as when the lens is covered (or the room is very dark); the candidate is prompted. Reported instead of `no_face` |
+| `camera_uncovered` | info | `coveredMs`: the picture came back |
 | `face_returned` | info | `awayMs` |
 | `screen_surface_unverified` | warn | the browser did not report what was shared |
 | `extra_display` | warn before the test, high during | `phase` |
