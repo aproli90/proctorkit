@@ -79,6 +79,7 @@ export class Proctor {
   private noFaceSince = 0;
   private absent = false;
   private prompted = false;
+  private fastFace: ReturnType<typeof setTimeout> | 0 = 0;
   private manyFaces = 0;
 
   private clipBuf: Record<'webcam' | 'screen', { window: number; w: number; h: number; context: ProctorContext; frames: { ms: number; bytes: Uint8Array }[] } | null> = { webcam: null, screen: null };
@@ -348,6 +349,7 @@ export class Proctor {
     document.documentElement.removeEventListener('mouseenter', this.onPointerBack);
     CLIPBOARD.forEach((t) => document.removeEventListener(t, this.onClipboard, true));
     for (const t of [this.displayTimer, this.flushTimer, this.faceTimer]) if (t) clearInterval(t);
+    if (this.fastFace) { clearTimeout(this.fastFace); this.fastFace = 0; }
     for (const t of [this.timer, this.awayShot, this.clipTimer]) if (t) clearTimeout(t);
     this.timer = this.clipTimer = this.displayTimer = this.flushTimer = this.awayShot = this.faceTimer = null;
     this.faces?.close(); this.faces = null; this.faceSeen = false;
@@ -595,6 +597,8 @@ export class Proctor {
         this.emit('no_face', 'warn', { seconds: Math.round(gone / 1000) });
         this.snap('event');
       }
+      // while the candidate is out of view, look twice a second, so the reminder clears as soon as they are back
+      if (!this.fastFace) this.fastFace = setTimeout(() => { this.fastFace = 0; void this.faceCheck(); }, Math.min(500, this.set.faceCheckIntervalSec * 1000));
     } else {
       if (this.absent) { this.emit('face_returned', 'info', { awayMs: now - this.noFaceSince }); this.snap('event'); }
       if (this.prompted) this.ui?.hideNotice();

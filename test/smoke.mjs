@@ -296,7 +296,7 @@ const browser = await chromium.launch({
     window.snaps = []; window.evs = []; window.__faces = 0;
     window.proctor = ProctorKit.createProctor({
       cameraTile: true,
-      settings: { faceSetupWaitSec: 1, snapshotIntervalSec: 2, snapshotJitterSec: 1, absencePromptSec: 1, absenceReportSec: 3, faceCheckIntervalSec: 0.4, frozenFeedFrames: 2, longFocusLossSec: 1, fastAnswerSec: 5, pointerAwayMinMs: 300, notASetting: 9, hideCameraAfterSetup: 'yes' },
+      settings: { faceSetupWaitSec: 1, snapshotIntervalSec: 2, snapshotJitterSec: 1, absencePromptSec: 1, absenceReportSec: 3, faceCheckIntervalSec: 1.5, frozenFeedFrames: 2, longFocusLossSec: 1, fastAnswerSec: 5, pointerAwayMinMs: 300, notASetting: 9, hideCameraAfterSetup: 'yes' },
       faceDetection: { detect: () => window.__faces },
       onEvent: (e) => window.evs.push(e),
       onSnapshot: (s) => window.snaps.push({ kind: s.kind, ms: s.ms, reason: s.reason }),
@@ -329,8 +329,8 @@ const browser = await chromium.launch({
   check('no face for the set time is reported', !!gone && gone.severity === 'warn' && gone.data.seconds >= 3, gone ? `${gone.data.seconds} s` : '');
   check('the prompt does not block the test', !(await page.evaluate(() => window.proctor.isBlocked())));
   await page.evaluate(() => { window.__faces = 1; });
-  await sleep(900);
-  check('prompt clears when the face returns', (await page.locator('.pk-notice').count()) === 0 && (await types()).includes('face_returned'));
+  await sleep(650);
+  check('prompt clears within about half a second of the face returning (checks every 1.5 s otherwise)', (await page.locator('.pk-notice').count()) === 0 && (await types()).includes('face_returned'));
   await page.evaluate(() => { window.__faces = 0; });
   await sleep(1900);
   await page.evaluate(() => { window.__faces = 1; });
@@ -338,7 +338,7 @@ const browser = await chromium.launch({
   check('moving back before the report time is only a reminder', (await page.locator('.pk-notice').count()) === 0 && (await types()).filter((t) => t === 'no_face').length === 1);
   const shotsBefore = await page.evaluate(() => window.snaps.filter((s) => s.reason === 'event').length);
   await page.evaluate(() => { window.__faces = 2; });
-  await sleep(1400);
+  await sleep(3400);
   const shotsAfter = await page.evaluate(() => window.snaps.filter((s) => s.reason === 'event').length);
   check('two faces raise no flag and no prompt, only an extra frame', !(await types()).includes('multiple_faces') && shotsAfter > shotsBefore && (await page.locator('.pk-notice').count()) === 0, `${shotsAfter - shotsBefore} extra frame(s)`);
   await page.evaluate(() => { window.__faces = 1; });
