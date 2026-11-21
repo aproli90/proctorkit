@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5
+
+- Clearer message when the face check's files fail to download: "Part of the camera check didn't download." (was "The camera check could not be loaded.", which read like a camera permission problem).
+- The changelog now ships in the npm package, and each release tag creates a GitHub release with that version's notes.
+- README: a Troubleshooting section, and `sessionId` with a server key explained.
+
 ## 0.2.4
 
 - The candidate is reminded to move back into view after 4 seconds out of frame (was 10), as an amber warning with an icon. `no_face` is still reported only after 10 seconds, so a candidate who moves back quickly is reminded, not flagged. New setting `absenceReportSec`; `absencePromptSec` now only sets the reminder.

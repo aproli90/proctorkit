@@ -41,7 +41,7 @@ export const defaultStrings: Record<string, string> = {
   cameraFraming: 'Keep your face in this picture',
   absencePrompt: 'Move back into view of your camera.',
   working: 'Checking…',
-  faceLoadError: 'The camera check could not be loaded.',
+  faceLoadError: "Part of the camera check didn't download.",
   faceLoadFix: 'Check your internet connection, then try again.',
   noFaceError: 'We could not see your face.',
   noFaceFix: 'Sit facing the camera so your face is in the picture, then try again.',

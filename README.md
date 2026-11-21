@@ -299,7 +299,7 @@ Call `setContext({ questionId })` whenever the question changes. The per-questio
 | `support()` | `{ ok, missing }` | Missing browser features, without prompting |
 | `ready()` | `boolean` | True when every requirement is met and `start()` would succeed |
 | `requestCamera()`, `prepareFaceDetection()`, `requestScreenShare()`, `giveConsent()` | | The individual steps, for headless hosts |
-| `sessionId` | `string \| null` | The ProctorKit Cloud session's ID once a page key has connected |
+| `sessionId` | `string \| null` | The ProctorKit Cloud session's ID once a page key has connected. With a server key it stays `null` in the page: your server already has it from the create-session response |
 
 ## TypeScript
 
@@ -370,7 +370,7 @@ Every event has `type`, `at` (ISO time), `ms` (since `start()`), `severity` (`in
 | `check_passed`, `check_failed` | info | `check` (`camera`, `face_detection`, `face_visible`, `screen_share`), `error` or `surface` |
 | `consent_given` | info | `retentionDays` |
 | `started`, `stopped` | info | |
-| `cloud_connected` | info | `sessionId` (page key only) |
+| `cloud_connected` | info | `sessionId` (page key only; with a server key your server has it) |
 | `cloud_unavailable` | warn | `code` and `message`: the page key was refused (`key_invalid`, `key_off`, `domain_not_allowed`, `daily_cap`, `candidate_required`) or the service (`unavailable`) could not be reached. The test carries on with the on-device checks |
 | `context_changed` | info | the values that changed |
 | `paused`, `resumed` | info | `reason`, `pausedMs` |
@@ -441,6 +441,16 @@ Every request and response, the flag types, limits and a prompt for coding agent
 - Face counting happens on the candidate's device. The only network requests it makes are to download the MediaPipe files; host them yourself or set `faceDetection: false` to avoid those.
 - The camera preview is hidden during the test by default. The consent notice says the webcam is recorded for the whole test.
 - You are responsible for meeting the privacy law that applies to you and your candidates.
+
+## Troubleshooting
+
+- **"Part of the camera check didn't download."** (`reason: 'face_detection'` in headless mode) The on-device face check's files could not be fetched: a slow or filtered network, or a Content Security Policy that blocks `cdn.jsdelivr.net` and `storage.googleapis.com`. It is not a camera problem. You can [host the files yourself](#face-detection).
+- **"The camera check could not be loaded" on a good connection, before 0.2.2.** Some bundlers rewrote the SDK's on-demand import. Update: `npm install proctorkit@latest`.
+- **Webhook signatures never match.** Sign the raw request body exactly as it arrived; parsing the JSON and stringifying it again changes the bytes. In Next.js read `await req.text()`, not `req.json()`.
+- **`proctor.sessionId` is `null` with a server key.** Expected: your server has the ID from the create-session response.
+- **The camera is requested twice.** More than one proctor was created. Create one per attempt, after the session (if any) has arrived; in React, `useState(() => createProctor(...))` in a component that mounts once.
+
+Every message the candidate can see, with its `reason`: [proctorkit.com/docs#troubleshooting](https://proctorkit.com/docs/#troubleshooting). What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 
