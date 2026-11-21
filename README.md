@@ -463,6 +463,8 @@ npm run build    # dist/: the ES module, the script-tag build and the types
 npm test         # headless Chromium, fake camera (PW_CHROME: a system browser)
 ```
 
+Releases: a merge to `main` that changes `version` in `package.json` (with its `CHANGELOG.md` entry) stages that version on npm and creates its tag and GitHub release. A maintainer approves it on npmjs.com. No tags by hand.
+
 ## Licence
 
 MIT
