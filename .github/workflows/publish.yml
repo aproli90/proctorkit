@@ -1,41 +1,59 @@
-# Stages a release on npm when a version tag (v0.1.1, v0.2.0, ...) is pushed. Nothing is public until a maintainer
-# approves it on npmjs.com > Staged Packages, with two-factor authentication.
-# Uses npm trusted publishing: npm trusts this workflow in this repo, so no token or secret is stored anywhere.
+# Releases itself: when a merge to main changes the version in package.json, this stages that version on npm and
+# creates its tag and GitHub release. Nothing is public until a maintainer approves it on npmjs.com >
+# Staged Packages, with two-factor authentication. Do not create version tags or releases by hand.
+# Uses npm trusted publishing: npm trusts this workflow (publish.yml) in this repo, so no token or secret is stored.
 # Set up once on npmjs.com: package proctorkit > Settings > Trusted publisher > GitHub Actions,
 # owner aproli90, repository proctorkit, workflow publish.yml, with "Allow npm publish" left off.
 name: Publish to npm
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+  workflow_dispatch: {}
+concurrency:
+  group: publish
+  cancel-in-progress: false
 permissions:
-  contents: write   # to create the GitHub release for the tag
+  contents: write   # to create the tag and the GitHub release
   id-token: write   # lets npm verify this run came from this workflow; also adds provenance to the package page
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+        with:
+          fetch-depth: 0
+      - name: Is this version new?
+        id: v
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null || [ "$(npm view "proctorkit@$v" version 2>/dev/null)" = "$v" ]; then
+            echo "v$v is already released: nothing to publish."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.v.outputs.new == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 24          # ships an npm new enough for trusted publishing
           registry-url: https://registry.npmjs.org
-      - run: npm install -g npm@latest   # npm stage needs npm 11.15 or later
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
-      - name: Tag matches package.json
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - run: npm stage publish --access public
-      - name: GitHub release with this version's changelog notes
+      - if: steps.v.outputs.new == 'true'
+        run: npm install -g npm@latest   # npm stage needs npm 11.15 or later
+      - if: steps.v.outputs.new == 'true'
+        run: npm ci
+      - if: steps.v.outputs.new == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.v.outputs.new == 'true'
+        run: npm test
+      - if: steps.v.outputs.new == 'true'
+        run: npm stage publish --access public
+      - name: Tag and GitHub release with this version's changelog notes
+        if: steps.v.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.v.outputs.version }}
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          awk -v v="$v" '$0 == "## " v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          awk -v v="$V" '$0 == "## " v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
-          # the tag may have been made by publishing a release on GitHub: then fill in its notes instead
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
-          else
-            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
-          fi
+          gh release create "v$V" --target "$GITHUB_SHA" --title "v$V" --notes-file notes.md
