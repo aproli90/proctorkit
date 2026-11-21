@@ -254,7 +254,7 @@ Every timing and threshold is in one object, `defaultSettings`. Pass only what y
 | `faceSetupWaitSec` | 12 | During setup, how long to wait for a face before asking the candidate to adjust |
 | `absencePromptSec` | 4 | No face for this long: ask the candidate to move back into view |
 | `absenceReportSec` | 10 | Still no face after this long: report `no_face` (moving back sooner is only a reminder) |
-| `coverReportSec` | 3 | No face and a dark, featureless picture (lens covered, or a very dark room) for this long: report `camera_blocked` |
+| `coverReportSec` | 3 | No face and a featureless picture, dark or red-lit (lens covered, or a very dark room), for this long: report `camera_blocked` |
 | `faceCheckIntervalSec` | 2 | Seconds between face checks |
 | `multipleFacesChecks` | 2 | Consecutive checks with two or more faces before an extra frame is taken |
 | `minFocusLossMs` | 800 | Shorter focus losses are ignored |

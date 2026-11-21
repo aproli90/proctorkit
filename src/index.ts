@@ -631,19 +631,28 @@ export class Proctor {
     this.coveredSince = 0; this.coverReported = false;
   }
 
-  /** A covered lens gives a dark picture with almost no detail. Measured on a tiny copy of the frame:
-   *  a finger over the lens reads brightness ~20 and spread ~10; a lit face and room read ~130 and ~60. */
+  /** A covered lens leaves almost no detail (neighbouring pixels nearly equal) on a dark picture, or on the red
+   *  glow of light through a fingertip. Measured on real frames shrunk to 16x12: covered 5 to 7.5, every real
+   *  scene 31 or more. Brightness or redness is also required, so a plain, evenly lit wall is not "covered". */
   private lensCovered(video: HTMLVideoElement): boolean {
     try {
+      const W = 16, H = 12;
       const c = (this.lumCanvas ||= document.createElement('canvas'));
-      c.width = 16; c.height = 12;
+      c.width = W; c.height = H;
       const g = c.getContext('2d', { willReadFrequently: true })!;
-      g.drawImage(video, 0, 0, 16, 12);
-      const px = g.getImageData(0, 0, 16, 12).data;
-      let sum = 0, sq = 0; const n = px.length / 4;
-      for (let i = 0; i < px.length; i += 4) { const y = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; sum += y; sq += y * y; }
-      const mean = sum / n, spread = Math.sqrt(Math.max(0, sq / n - mean * mean));
-      return (mean < 40 && spread < 16) || spread < 6;
+      g.drawImage(video, 0, 0, W, H);
+      const px = g.getImageData(0, 0, W, H).data;
+      const y = new Float32Array(W * H);
+      let r = 0, gr = 0, sum = 0;
+      for (let i = 0, j = 0; i < px.length; i += 4, j++) { y[j] = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; sum += y[j]; r += px[i]; gr += px[i + 1]; }
+      let d = 0;
+      for (let row = 0; row < H; row++) for (let col = 0; col < W; col++) {
+        const k = row * W + col;
+        if (col + 1 < W) d += Math.abs(y[k + 1] - y[k]) / ((W - 1) * H);
+        if (row + 1 < H) d += Math.abs(y[k + W] - y[k]) / (W * (H - 1));
+      }
+      const mean = sum / (W * H), red = r / Math.max(1, gr);
+      return d < 12 && (mean < 70 || red > 1.6);
     } catch { return false; }
   }
 
