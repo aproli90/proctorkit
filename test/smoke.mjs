@@ -284,7 +284,16 @@ const browser = await chromium.launch({
     // a still picture offered as a camera called "OBS Virtual Camera"
     navigator.mediaDevices.getUserMedia = async () => {
       const c = document.createElement('canvas'); c.width = 640; c.height = 480;
-      const g = c.getContext('2d'); g.fillStyle = '#567'; g.fillRect(0, 0, 640, 480); g.fillStyle = '#fc9'; g.fillRect(220, 120, 200, 240);
+      const g = c.getContext('2d');
+      // window.__dark: a finger over the lens (dark and featureless)
+      let dark = null;
+      const paint = () => {
+        if (dark === !!window.__dark) return;
+        dark = !!window.__dark;
+        if (dark) { g.fillStyle = '#1a1210'; g.fillRect(0, 0, 640, 480); }
+        else { g.fillStyle = '#567'; g.fillRect(0, 0, 640, 480); g.fillStyle = '#fc9'; g.fillRect(220, 120, 200, 240); }
+      };
+      paint(); setInterval(paint, 100);
       const st = c.captureStream();
       setTimeout(() => { g.fillRect(0, 0, 1, 1); }, 200); // one repaint so the first frame is delivered
       Object.defineProperty(st.getVideoTracks()[0], 'label', { value: 'OBS Virtual Camera' });
@@ -363,6 +372,19 @@ const browser = await chromium.launch({
   await sleep(4000);
   const frozen = await ev('camera_frozen');
   check('identical webcam frames are reported as a frozen feed, once', !!frozen && frozen.severity === 'high' && (await types()).filter((t) => t === 'camera_frozen').length === 1, frozen ? `${frozen.data.frames} frames` : '');
+
+  // a finger over the lens: reported as a covered camera, not as an absent face
+  const faceGoneBefore = (await types()).filter((t) => t === 'no_face').length;
+  await page.evaluate(() => { window.__faces = 0; window.__dark = true; });
+  await sleep(5200);
+  const blocked = await ev('camera_blocked');
+  check('a covered lens is reported, with its own reminder', !!blocked && blocked.severity === 'high' && (await page.locator('.pk-notice--warn').innerText()).startsWith('Your camera is covered'), blocked ? JSON.stringify(blocked.data) : '');
+  check('a covered lens is not reported again as an absent face, and a lit empty frame never counted as covered', (await types()).filter((t) => t === 'no_face').length === faceGoneBefore && (await types()).filter((t) => t === 'camera_blocked').length === 1);
+  await page.evaluate(() => { window.__faces = 1; window.__dark = false; });
+  await sleep(900);
+  const unc = await ev('camera_uncovered');
+  check('uncovering is logged with how long it lasted, and the reminder clears', !!unc && unc.data.coveredMs >= 3000 && (await page.locator('.pk-notice').count()) === 0, unc ? JSON.stringify(unc.data) : '');
+
   const shots = (await page.evaluate(() => window.snaps)).filter((s) => s.kind === 'webcam' && s.reason === 'interval').map((s) => s.ms);
   const gaps = shots.slice(2).map((ms, i) => ms - shots[i + 1]);
   check('capture timing varies within the allowed range', gaps.length >= 3 && gaps.every((g) => g > 600 && g < 3500) && Math.max(...gaps) - Math.min(...gaps) > 50, gaps.join(', ') + ' ms');

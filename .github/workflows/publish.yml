@@ -8,7 +8,7 @@ on:
   push:
     tags: ['v*']
 permissions:
-  contents: read
+  contents: write   # to create the GitHub release for the tag
   id-token: write   # lets npm verify this run came from this workflow; also adds provenance to the package page
 jobs:
   publish:
@@ -26,3 +26,11 @@ jobs:
       - name: Tag matches package.json
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
       - run: npm stage publish --access public
+      - name: GitHub release with this version's changelog notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '$0 == "## " v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

@@ -79,6 +79,10 @@ export class Proctor {
   private noFaceSince = 0;
   private absent = false;
   private prompted = false;
+  private noticeText = '';
+  private coveredSince = 0;
+  private coverReported = false;
+  private lumCanvas: HTMLCanvasElement | null = null;
   private fastFace: ReturnType<typeof setTimeout> | 0 = 0;
   private manyFaces = 0;
 
@@ -578,7 +582,7 @@ export class Proctor {
   private async faceCheck(): Promise<void> {
     const video = this.camV;
     if (!this.running || this.faceBusy || !this.faces) return;
-    if (this.pauses.size || !video || !video.videoWidth || !live(this.cam)) { this.noFaceSince = 0; this.manyFaces = 0; if (this.prompted) { this.prompted = false; this.ui?.hideNotice(); } return; }
+    if (this.pauses.size || !video || !video.videoWidth || !live(this.cam)) { this.noFaceSince = 0; this.manyFaces = 0; if (this.prompted) { this.prompted = false; this.noticeText = ''; this.ui?.hideNotice(); } return; }
     this.faceBusy = true;
     let n: number;
     try { n = await this.faces.count(video); } catch { return; } finally { this.faceBusy = false; }
@@ -587,12 +591,24 @@ export class Proctor {
     if (n === 0) {
       if (!this.noFaceSince) this.noFaceSince = now;
       const gone = now - this.noFaceSince;
+      // no face and nothing to see: a finger or tape over the lens (or a very dark room)
+      const covered = this.lensCovered(video);
+      if (covered) {
+        if (!this.coveredSince) this.coveredSince = now;
+        if (!this.coverReported && now - this.coveredSince >= this.set.coverReportSec * 1000) {
+          this.coverReported = true;
+          this.emit('camera_blocked', 'high', { seconds: Math.round((now - this.coveredSince) / 1000) });
+          this.snap('event');
+        }
+      } else this.endCover(now);
       // remind early, report late: a candidate who moves back within a few seconds is only reminded
-      if (!this.prompted && gone >= this.set.absencePromptSec * 1000) {
+      if (gone >= this.set.absencePromptSec * 1000 || this.coverReported) {
+        const text = covered ? this.s.coverPrompt : this.s.absencePrompt;
         this.prompted = true;
-        if (this.config.ui !== 'headless') this.view().showNotice(this.s.absencePrompt, 'warn');
+        if (this.config.ui !== 'headless' && this.noticeText !== text) { this.noticeText = text; this.view().showNotice(text, 'warn'); }
       }
-      if (!this.absent && gone >= Math.max(this.set.absencePromptSec, this.set.absenceReportSec) * 1000) {
+      // a covered lens is reported as such, not again as an absent face
+      if (!this.absent && !this.coverReported && gone >= Math.max(this.set.absencePromptSec, this.set.absenceReportSec) * 1000) {
         this.absent = true;
         this.emit('no_face', 'warn', { seconds: Math.round(gone / 1000) });
         this.snap('event');
@@ -601,12 +617,43 @@ export class Proctor {
       if (!this.fastFace) this.fastFace = setTimeout(() => { this.fastFace = 0; void this.faceCheck(); }, Math.min(500, this.set.faceCheckIntervalSec * 1000));
     } else {
       if (this.absent) { this.emit('face_returned', 'info', { awayMs: now - this.noFaceSince }); this.snap('event'); }
+      this.endCover(now);
       if (this.prompted) this.ui?.hideNotice();
-      this.noFaceSince = 0; this.absent = false; this.prompted = false;
+      this.noFaceSince = 0; this.absent = false; this.prompted = false; this.noticeText = '';
     }
     // a second face is not reported from here: an extra frame is taken so the moment gets checked
     if (n >= 2) { this.manyFaces++; if (this.manyFaces === this.set.multipleFacesChecks) this.snap('event'); }
     else this.manyFaces = 0;
+  }
+
+  private endCover(now: number): void {
+    if (this.coverReported) this.emit('camera_uncovered', 'info', { coveredMs: now - this.coveredSince });
+    this.coveredSince = 0; this.coverReported = false;
+  }
+
+  /** A covered lens leaves almost no detail (neighbouring pixels nearly equal) on a dark picture, or on the red
+   *  glow of light through a fingertip. Measured on real frames shrunk to 16x12: covered 5 to 7.5, every real
+   *  scene 31 or more. Brightness or redness is also required, so a plain, evenly lit wall is not "covered". */
+  private lensCovered(video: HTMLVideoElement): boolean {
+    try {
+      const W = 16, H = 12;
+      const c = (this.lumCanvas ||= document.createElement('canvas'));
+      c.width = W; c.height = H;
+      const g = c.getContext('2d', { willReadFrequently: true })!;
+      g.drawImage(video, 0, 0, W, H);
+      const px = g.getImageData(0, 0, W, H).data;
+      const y = new Float32Array(W * H);
+      let r = 0, gr = 0, sum = 0;
+      for (let i = 0, j = 0; i < px.length; i += 4, j++) { y[j] = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]; sum += y[j]; r += px[i]; gr += px[i + 1]; }
+      let d = 0;
+      for (let row = 0; row < H; row++) for (let col = 0; col < W; col++) {
+        const k = row * W + col;
+        if (col + 1 < W) d += Math.abs(y[k + 1] - y[k]) / ((W - 1) * H);
+        if (row + 1 < H) d += Math.abs(y[k + W] - y[k]) / (W * (H - 1));
+      }
+      const mean = sum / (W * H), red = r / Math.max(1, gr);
+      return d < 12 && (mean < 70 || red > 1.6);
+    } catch { return false; }
   }
 
   private onClipboard = (e: Event): void => {
